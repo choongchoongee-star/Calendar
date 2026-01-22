@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monthly Schedule</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1 id="month-year"></h1>
+            <div class="nav-buttons">
+                <button id="prev-month">&lt;</button>
+                <button id="next-month">&gt;</button>
+            </div>
+        </header>
+        <div id="calendar-container">
+            <div class="days-of-week">
+                <div>Sun</div>
+                <div>Mon</div>
+                <div>Tue</div>
+                <div>Wed</div>
+                <div>Thu</div>
+                <div>Fri</div>
+                <div>Sat</div>
+            </div>
+            <div id="calendar" class="calendar-grid"></div>
+        </div>
+    </div>
+
+    <div id="add-schedule-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>Add Schedule</h2>
+            <input type="text" id="schedule-text" placeholder="Schedule description...">
+            <button id="save-schedule">Save</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
