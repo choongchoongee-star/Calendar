@@ -143,6 +143,15 @@ header {
     box-sizing: border-box;
 }
 
+.event-bar.multi-day {
+    /* Kept for reference, though unified style is preferred, holidays will override */
+}
+
+.event-bar.holiday {
+    background-color: #ff6b6b;
+    color: white;
+}
+
 .event-bar .delete-btn {
     float: right;
     margin-left: 4px;
@@ -187,8 +196,81 @@ header {
 
 .modal-content h2 { margin-top: 0; }
 .modal-content label { margin-top: 10px; display: block; }
-.modal-content input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+.modal-content input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; } 
+
+.recurrence-section {
+    margin-top: 15px;
+    padding-top: 10px;
+    border-top: 1px solid #eee;
+}
+
+.checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.checkbox-wrapper label {
+    margin-top: 0; /* Override default label margin */
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
 .modal-content button { width: 100%; padding: 10px; background-color: #4A90E2; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+/* Schedule List Modal Styles */
+.modal-content.list-modal {
+    position: relative;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+#schedule-list-container {
+    margin-top: 20px;
+    margin-bottom: 60px; /* Space for the floating button */
+}
+
+.list-item {
+    background: #f9f9f9;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    border-left: 4px solid #4A90E2;
+}
+
+.list-item.holiday {
+    border-left-color: #ff6b6b;
+    background: #fff0f0;
+}
+
+.list-item-time {
+    font-size: 0.8rem;
+    color: #666;
+    margin-bottom: 4px;
+}
+
+.list-item-title {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.add-btn {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    width: 50px !important; /* Override standard button width */
+    height: 50px;
+    border-radius: 50% !important;
+    font-size: 1.5rem;
+    line-height: 1;
+    padding: 0 !important;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 4px 10px rgba(74, 144, 226, 0.4);
+}
 
 /* Responsive */
 @media (max-width: 768px) {
