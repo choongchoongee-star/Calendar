@@ -277,7 +277,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const m = curr.getMonth();
             const d = curr.getDate();
             if ((m === 4 && d === 18) || (m === 9 && d === 31)) {
-                special.push({id: `sp-${m}-${d}`, text: "❤️ HBD ❤️", startDate: formatDate(curr), endDate: formatDate(curr), type: 'special'});
+                special.push({id: `sp-${m}-${d}`, text: "HBD❤️", startDate: formatDate(curr), endDate: formatDate(curr), type: 'special'});
+            }
+            if (m === 10 && d === 9) {
+                special.push({id: `sp-${m}-${d}`, text: "❤️", startDate: formatDate(curr), endDate: formatDate(curr), type: 'special'});
             }
             curr.setDate(curr.getDate() + 1);
         }
