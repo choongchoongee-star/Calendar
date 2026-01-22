@@ -29,9 +29,37 @@ header {
     color: #fff;
 }
 
-#month-year {
+#date-selectors {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+#date-selectors select {
     font-size: 1.5rem;
     font-weight: 600;
+    background-color: transparent;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    border-bottom: 1px solid transparent;
+    transition: border-bottom-color 0.3s;
+    font-family: inherit;
+    padding: 0 5px;
+}
+
+#date-selectors select:hover {
+    border-bottom-color: #fff;
+}
+
+#date-selectors select:focus {
+    outline: none;
+    border-bottom-color: #fff;
+}
+
+#date-selectors select option {
+    color: #333; /* Dark text for options dropdown */
+    font-size: 1rem;
 }
 
 .nav-buttons button {
@@ -186,6 +214,8 @@ header {
     border-radius: 8px;
     width: 300px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 .modal-content .close-button {
@@ -274,7 +304,32 @@ header {
 
 /* Responsive */
 @media (max-width: 768px) {
+    body {
+        padding: 0;
+        align-items: stretch;
+    }
+
+    #app {
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    header {
+        padding: 10px;
+    }
+
+    #calendar-container {
+        padding: 2px;
+    }
+
+    .day-cell {
+        padding: 2px;
+    }
+
     .event-bar {
-        font-size: 0.7rem;
+        font-size: 0.65rem;
+        height: 20px;
+        line-height: 20px;
+        padding: 0 2px;
     }
 }
