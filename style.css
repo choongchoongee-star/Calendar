@@ -235,6 +235,12 @@ header {
     border-top: 1px solid #eee;
 }
 
+.button-separator {
+    margin-top: 10px;
+    margin-bottom: 15px;
+    border-top: 1px solid #eee;
+}
+
 .checkbox-wrapper {
     display: flex;
     align-items: center;
@@ -369,15 +375,19 @@ header {
         font-size: 1.2rem;
     }
     .modal-content label {
-        margin-top: 5px;
+        margin-top: 2px;
         font-size: 0.9rem;
     }
     .modal-content input {
-        margin: 5px 0;
+        margin: 2px 0;
         padding: 8px;
     }
     .recurrence-section {
-        margin-top: 10px;
+        margin-top: 5px;
         padding-top: 5px;
+    }
+    .button-separator {
+        margin-top: 5px;
+        margin-bottom: 10px;
     }
 }
