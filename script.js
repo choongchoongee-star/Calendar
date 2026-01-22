@@ -31,15 +31,32 @@ document.addEventListener('DOMContentLoaded', () => {
     initSupabase();
 
     // 2. Select Elements
-    const monthYearElement = document.getElementById('month-year');
+    const yearSelect = document.getElementById('year-select');
+    const monthSelect = document.getElementById('month-select');
     const calendarElement = document.getElementById('calendar');
     const prevMonthButton = document.getElementById('prev-month');
     const nextMonthButton = document.getElementById('next-month');
     
     // Check if essential elements exist
-    if (!monthYearElement || !calendarElement) {
+    if (!yearSelect || !monthSelect || !calendarElement) {
         console.error("Essential calendar elements missing from DOM.");
         return;
+    }
+
+    // Initialize Dropdowns
+    const currentYear = new Date().getFullYear();
+    for (let y = currentYear - 10; y <= currentYear + 10; y++) {
+        const option = document.createElement('option');
+        option.value = y;
+        option.textContent = y;
+        yearSelect.appendChild(option);
+    }
+
+    for (let m = 0; m < 12; m++) {
+        const option = document.createElement('option');
+        option.value = m;
+        option.textContent = (m + 1);
+        monthSelect.appendChild(option);
     }
 
     // Modal elements
@@ -105,10 +122,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth();
         
-        // Fallback for month name
-        const monthNames = ["January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"];
-        monthYearElement.textContent = `${monthNames[month]} ${year}`;
+        // Sync Dropdowns
+        yearSelect.value = year;
+        monthSelect.value = month;
         
         const weeks = getWeeksInMonth(year, month);
         
@@ -282,12 +298,12 @@ document.addEventListener('DOMContentLoaded', () => {
         ];
 
         if (dayEvents.length === 0) {
-            scheduleListContainer.innerHTML = '<p style="color:#999; text-align:center;">No schedules</p>';
+            scheduleListContainer.innerHTML = '<p style="color:#999; text-align:center;">일정 없음</p>';
         } else {
             dayEvents.forEach(ev => {
                 const item = document.createElement('div');
                 item.className = `list-item ${ev.type === 'holiday' ? 'holiday' : ''}`;
-                item.innerHTML = `<div class="list-item-time">${ev.startTime || 'All Day'}</div><div class="list-item-title">${ev.text}</div>`;
+                item.innerHTML = `<div class="list-item-time">${ev.startTime || '하루 종일'}</div><div class="list-item-title">${ev.text}</div>`;
                 if (ev.type !== 'holiday' && ev.type !== 'special') {
                     item.onclick = () => { closeListModal(); openAddScheduleModal(null, ev); };
                 }
@@ -300,20 +316,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function openAddScheduleModal(d, s = null) {
         modal.style.display = 'flex';
+        const modalTitle = modal.querySelector('h2');
         editingScheduleId = s ? s.id : null;
         if (s) {
+            modalTitle.textContent = "일정 수정";
             scheduleTextInput.value = s.text; startDateInput.value = s.startDate; endDateInput.value = s.endDate;
             startTimeInput.value = s.startTime || ''; endTimeInput.value = s.endTime || '';
+            
+            // Disable recurrence when editing
+            enableRecurrenceCheckbox.disabled = true;
+            enableRecurrenceCheckbox.checked = false;
+            recurrenceOptions.style.display = 'none';
         } else {
+            modalTitle.textContent = "일정 추가";
             startDateInput.value = d; endDateInput.value = d; scheduleTextInput.value = '';
             startTimeInput.value = ''; endTimeInput.value = '';
+            
+            // Enable recurrence when adding new
+            enableRecurrenceCheckbox.disabled = false;
+            enableRecurrenceCheckbox.checked = false;
+            recurrenceOptions.style.display = 'none';
         }
     }
 
     function closeAddScheduleModal() { modal.style.display = 'none'; }
 
     async function saveSchedule() {
-        if (!supabaseClient) { alert("Supabase not configured."); return; }
+        if (!supabaseClient) { alert("Supabase가 설정되지 않았습니다."); return; }
         const payload = { 
             text: scheduleTextInput.value.trim(), 
             start_date: startDateInput.value, 
@@ -323,20 +352,55 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         if (!payload.text) return;
 
+        // Recurrence Logic
+        const isRecurrenceEnabled = enableRecurrenceCheckbox.checked && !enableRecurrenceCheckbox.disabled;
+        
         try {
-            const { error } = editingScheduleId 
-                ? await supabaseClient.from('schedules').update(payload).eq('id', editingScheduleId)
-                : await supabaseClient.from('schedules').insert([payload]);
-            if (error) throw error;
+            if (isRecurrenceEnabled) {
+                // Handle Recurrence
+                const interval = parseInt(recurrenceIntervalInput.value, 10);
+                const count = parseInt(recurrenceCountInput.value, 10);
+                
+                if (interval > 0 && count > 0) {
+                    const payloads = [];
+                    const baseStart = new Date(startDateInput.value);
+                    const baseEnd = new Date(endDateInput.value);
+                    
+                    for (let i = 0; i < count; i++) {
+                        const nextStart = new Date(baseStart);
+                        nextStart.setDate(baseStart.getDate() + (i * interval));
+                        
+                        const nextEnd = new Date(baseEnd);
+                        nextEnd.setDate(baseEnd.getDate() + (i * interval));
+                        
+                        payloads.push({
+                            text: payload.text,
+                            start_date: formatDate(nextStart),
+                            end_date: formatDate(nextEnd),
+                            start_time: payload.start_time,
+                            end_time: payload.end_time
+                        });
+                    }
+                     const { error } = await supabaseClient.from('schedules').insert(payloads);
+                     if (error) throw error;
+                }
+            } else {
+                // Single Event
+                const { error } = editingScheduleId 
+                    ? await supabaseClient.from('schedules').update(payload).eq('id', editingScheduleId)
+                    : await supabaseClient.from('schedules').insert([payload]);
+                if (error) throw error;
+            }
+
             await fetchSchedules();
             closeAddScheduleModal();
         } catch (e) {
-            alert("Error saving: " + e.message);
+            alert("저장 중 오류 발생: " + e.message);
         }
     }
 
     async function deleteSchedule(id) {
-        if (supabaseClient && confirm("Delete?")) {
+        if (supabaseClient && confirm("삭제하시겠습니까?")) {
             await supabaseClient.from('schedules').delete().eq('id', id);
             await fetchSchedules();
         }
@@ -345,6 +409,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Event Listeners ---
     prevMonthButton.onclick = () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); };
     nextMonthButton.onclick = () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); };
+    
+    yearSelect.onchange = () => { currentDate.setFullYear(parseInt(yearSelect.value)); renderCalendar(); };
+    monthSelect.onchange = () => { currentDate.setMonth(parseInt(monthSelect.value)); renderCalendar(); };
+
     closeModalButton.onclick = closeAddScheduleModal;
     saveScheduleButton.onclick = saveSchedule;
     closeListModalButton.onclick = closeListModal;
