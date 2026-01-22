@@ -303,10 +303,34 @@ document.addEventListener('DOMContentLoaded', () => {
             dayEvents.forEach(ev => {
                 const item = document.createElement('div');
                 item.className = `list-item ${ev.type === 'holiday' ? 'holiday' : ''}`;
-                item.innerHTML = `<div class="list-item-time">${ev.startTime || '하루 종일'}</div><div class="list-item-title">${ev.text}</div>`;
+                
+                // Create content container for text
+                const contentDiv = document.createElement('div');
+                contentDiv.style.flex = '1';
+                contentDiv.innerHTML = `<div class="list-item-time">${ev.startTime || '하루 종일'}</div><div class="list-item-title">${ev.text}</div>`;
+                item.appendChild(contentDiv);
+
                 if (ev.type !== 'holiday' && ev.type !== 'special') {
-                    item.onclick = () => { closeListModal(); openAddScheduleModal(null, ev); };
+                    // Click item to edit
+                    item.style.cursor = 'pointer';
+                    contentDiv.onclick = () => { closeListModal(); openAddScheduleModal(null, ev); };
+
+                    // Delete Button
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.innerHTML = '&times;';
+                    deleteBtn.className = 'list-delete-btn';
+                    deleteBtn.onclick = (e) => { 
+                        e.stopPropagation(); // Prevent triggering edit
+                        deleteSchedule(ev.id); 
+                        // Optionally refresh the list modal immediately without closing it? 
+                        // For now, deleteSchedule refreshes the whole calendar. 
+                        // We might want to close the list modal to reflect changes or reload the list.
+                        // Let's close it for simplicity as per existing flow.
+                        closeListModal(); 
+                    };
+                    item.appendChild(deleteBtn);
                 }
+                
                 scheduleListContainer.appendChild(item);
             });
         }
