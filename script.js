@@ -1,9 +1,47 @@
+// --- Supabase Configuration ---
+// TODO: Replace these placeholders with your actual Supabase project credentials
+const SUPABASE_URL = 'https://rztrkeejliampmzcqbmx.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6dHJrZWVqbGlhbXBtemNxYm14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDE4MTksImV4cCI6MjA4NDY3NzgxOX0.ind5OQoPfWuAd_StssdeIDlrKxotW3XPhGOV63NqUWY';
+
+// Initialize Supabase safely
+let supabaseClient = null;
+
+function initSupabase() {
+    if (typeof window.supabase === 'undefined') {
+        console.warn("Supabase library not loaded. Data will not persist.");
+        return;
+    }
+    // Check if placeholders are still present
+    if (SUPABASE_URL.includes('YOUR_PROJECT_ID')) {
+        console.warn("Supabase credentials not set. Using local mode.");
+        return;
+    }
+    try {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        console.log("Supabase initialized successfully.");
+    } catch (e) {
+        console.error("Failed to initialize Supabase:", e);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    console.log("DOM loaded. Starting initialization...");
+
+    // 1. Initialize Supabase
+    initSupabase();
+
+    // 2. Select Elements
     const monthYearElement = document.getElementById('month-year');
     const calendarElement = document.getElementById('calendar');
     const prevMonthButton = document.getElementById('prev-month');
     const nextMonthButton = document.getElementById('next-month');
     
+    // Check if essential elements exist
+    if (!monthYearElement || !calendarElement) {
+        console.error("Essential calendar elements missing from DOM.");
+        return;
+    }
+
     // Modal elements
     const modal = document.getElementById('add-schedule-modal');
     const closeModalButton = document.querySelector('.modal-content .close-button');
@@ -28,24 +66,49 @@ document.addEventListener('DOMContentLoaded', () => {
     const openAddModalBtn = document.getElementById('open-add-modal-btn');
 
     let currentDate = new Date();
-    let currentSelectedDate = null; // Track selected date for adding new schedule
-    let editingScheduleId = null; // Track ID of schedule being edited
+    let currentSelectedDate = null;
+    let editingScheduleId = null;
     let schedules = [];
-    try {
-        const storedSchedules = JSON.parse(localStorage.getItem('schedules'));
-        if (Array.isArray(storedSchedules)) {
-            schedules = storedSchedules;
+
+    // 3. Define Functions
+    async function fetchSchedules() {
+        if (!supabaseClient) {
+            console.log("Skipping fetch: Supabase not initialized.");
+            renderCalendar(); // Render anyway in case of no Supabase
+            return;
         }
-    } catch (e) {
-        console.error("Error parsing schedules from localStorage", e);
+        console.log("Fetching schedules...");
+        try {
+            const { data, error } = await supabaseClient.from('schedules').select('*');
+            if (error) throw error;
+            if (data) {
+                console.log(`Fetched ${data.length} schedules.`);
+                schedules = data.map(item => ({
+                    id: item.id,
+                    text: item.text,
+                    startDate: item.start_date,
+                    endDate: item.end_date,
+                    startTime: item.start_time,
+                    endTime: item.end_time
+                }));
+            }
+        } catch (err) {
+            console.error("Error fetching data:", err);
+        } finally {
+            renderCalendar();
+        }
     }
 
     function renderCalendar() {
+        console.log("Rendering calendar...");
         calendarElement.innerHTML = '';
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth();
         
-        monthYearElement.textContent = `${currentDate.toLocaleString('default', { month: 'long' })} ${year}`;
+        // Fallback for month name
+        const monthNames = ["January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"];
+        monthYearElement.textContent = `${monthNames[month]} ${year}`;
         
         const weeks = getWeeksInMonth(year, month);
         
@@ -53,17 +116,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const weekRow = document.createElement('div');
             weekRow.classList.add('week-row');
             
-            // 1. Create the Day Cells (Background Layer)
-            const dayCells = [];
-            let currentDay = new Date(week.start);
-            
+            // Render Day Cells
             for (let i = 0; i < 7; i++) {
+                const currentDay = new Date(week.start);
+                currentDay.setDate(week.start.getDate() + i);
+
                 const dayEl = document.createElement('div');
                 dayEl.classList.add('day-cell');
-                
-                // Determine if this day is in the current month
-                const isCurrentMonth = currentDay.getMonth() === month;
-                if (!isCurrentMonth) dayEl.classList.add('other-month');
+                if (currentDay.getMonth() !== month) dayEl.classList.add('other-month');
 
                 const dateString = formatDate(currentDay);
                 dayEl.dataset.date = dateString;
@@ -73,485 +133,233 @@ document.addEventListener('DOMContentLoaded', () => {
                 dayNumber.textContent = currentDay.getDate();
                 dayEl.appendChild(dayNumber);
 
-                const today = new Date();
-                if (currentDay.toDateString() === today.toDateString()) {
-                    dayEl.classList.add('today');
-                }
-
-                // Click to open schedule list view instead of add modal directly
+                if (currentDay.toDateString() === new Date().toDateString()) dayEl.classList.add('today');
                 dayEl.addEventListener('click', () => openScheduleListModal(dateString));
-
                 weekRow.appendChild(dayEl);
-                dayCells.push({ element: dayEl, date: new Date(currentDay) });
-                
-                currentDay.setDate(currentDay.getDate() + 1);
             }
-            // ... (rest of renderCalendar remains same, just modifying the click listener above)
 
-            // 2. Process and Render Events for this Week (Events Layer)
+            // Render Events Layer
             const eventsContainer = document.createElement('div');
             eventsContainer.classList.add('events-container');
             
-            const userEvents = getEventsForWeek(week.start, week.end);
-            const holidays = getHolidaysForWeek(week.start, week.end);
-            const specialEvents = getRecurringSpecialEvents(week.start, week.end);
-            const weekEvents = [...userEvents, ...holidays, ...specialEvents];
+            const weekEvents = [
+                ...getEventsForWeek(week.start, week.end),
+                ...getHolidaysForWeek(week.start, week.end),
+                ...getRecurringSpecialEvents(week.start, week.end)
+            ];
             
-            // Sort: Multi-day first (by duration desc), then single-day (by start time)
+            // Sort events: Multi-day first
             weekEvents.sort((a, b) => {
                 const aMulti = a.startDate !== a.endDate;
                 const bMulti = b.startDate !== b.endDate;
-                if (aMulti && !bMulti) return -1;
-                if (!aMulti && bMulti) return 1;
-                
-                if (aMulti && bMulti) {
-                    // Both multi: longer duration first
-                    const aDur = new Date(a.endDate) - new Date(a.startDate);
-                    const bDur = new Date(b.endDate) - new Date(b.startDate);
-                    return bDur - aDur;
-                } else {
-                    // Both single: earlier time first
-                    return (a.startTime || '00:00').localeCompare(b.startTime || '00:00');
-                }
+                if (aMulti !== bMulti) return aMulti ? -1 : 1;
+                return (a.startTime || '00:00').localeCompare(b.startTime || '00:00');
             });
 
-            // Calculate layout tracks
-            const tracks = []; // Array of arrays (days occupied)
-            
+            const tracks = [];
             weekEvents.forEach(event => {
-                // Determine span within this week
-                const eventStart = new Date(event.startDate + 'T00:00:00');
-                const eventEnd = new Date(event.endDate + 'T00:00:00');
-                
-                const renderStart = eventStart < week.start ? week.start : eventStart;
-                const renderEnd = eventEnd > week.end ? week.end : eventEnd;
+                const eStart = new Date(event.startDate + 'T00:00:00');
+                const eEnd = new Date(event.endDate + 'T00:00:00');
+                const rStart = eStart < week.start ? week.start : eStart;
+                const rEnd = eEnd > week.end ? week.end : eEnd;
 
-                // Map to 0-6 index
-                const startIndex = Math.floor((renderStart - week.start) / (1000 * 60 * 60 * 24));
-                const endIndex = Math.floor((renderEnd - week.start) / (1000 * 60 * 60 * 24));
+                const startIndex = Math.floor((rStart - week.start) / 86400000);
+                const endIndex = Math.floor((rEnd - week.start) / 86400000);
                 
-                // Find first available track
                 let trackIndex = 0;
-                let placed = false;
-                while (!placed) {
+                while (true) {
                     if (!tracks[trackIndex]) tracks[trackIndex] = new Array(7).fill(false);
-                    
                     let collision = false;
-                    for (let d = startIndex; d <= endIndex; d++) {
-                        if (tracks[trackIndex][d]) {
-                            collision = true;
-                            break;
-                        }
-                    }
-                    
+                    for (let d = startIndex; d <= endIndex; d++) if (tracks[trackIndex][d]) collision = true;
                     if (!collision) {
-                        // Place event
-                        for (let d = startIndex; d <= endIndex; d++) {
-                            tracks[trackIndex][d] = true;
-                        }
-                        placed = true;
-                    } else {
-                        trackIndex++;
+                        for (let d = startIndex; d <= endIndex; d++) tracks[trackIndex][d] = true;
+                        break;
                     }
+                    trackIndex++;
                 }
 
-                // Render the Event Bar
-                const eventBar = document.createElement('div');
-                eventBar.classList.add('event-bar');
-                if (event.startDate !== event.endDate) eventBar.classList.add('multi-day');
-                if (event.type === 'holiday') eventBar.classList.add('holiday');
+                const bar = document.createElement('div');
+                bar.classList.add('event-bar');
+                if (event.type === 'holiday') bar.classList.add('holiday');
+                bar.textContent = (event.startDate === event.endDate && event.startTime) ? `${event.startTime} ${event.text}` : event.text;
                 
-                // Content
-                let text = event.text;
-                if (event.startDate === event.endDate && event.startTime) {
-                    text = `${event.startTime} ${text}`;
-                }
-                eventBar.textContent = text;
-                
-                // Delete button (only for user schedules)
                 if (event.type !== 'holiday' && event.type !== 'special') {
-                    const deleteBtn = document.createElement('span');
-                    deleteBtn.innerHTML = '&times;';
-                    deleteBtn.classList.add('delete-btn');
-                    deleteBtn.onclick = (e) => { e.stopPropagation(); deleteSchedule(event.id); };
-                    eventBar.appendChild(deleteBtn);
-
-                    // Click to edit
-                    eventBar.addEventListener('click', () => {
-                        openAddScheduleModal(null, event); 
-                    });
+                    const del = document.createElement('span');
+                    del.innerHTML = '&times;';
+                    del.classList.add('delete-btn');
+                    del.onclick = (e) => { e.stopPropagation(); deleteSchedule(event.id); };
+                    bar.appendChild(del);
+                    bar.onclick = () => openAddScheduleModal(null, event);
                 }
 
-                // Styling & Position
-                const leftPercent = (startIndex / 7) * 100;
-                const widthPercent = ((endIndex - startIndex + 1) / 7) * 100;
-                
-                eventBar.style.left = `calc(${leftPercent}% + 2px)`;
-                eventBar.style.width = `calc(${widthPercent}% - 4px)`;
-                eventBar.style.top = `${trackIndex * 26}px`; // Increased height slightly for better spacing
-
-                // Continuity styling across week boundaries
-                if (eventStart < week.start) {
-                    eventBar.style.borderTopLeftRadius = '0';
-                    eventBar.style.borderBottomLeftRadius = '0';
-                    eventBar.style.marginLeft = '-2px';
-                    eventBar.style.width = `calc(${widthPercent}% - 2px)`;
-                }
-                if (eventEnd > week.end) {
-                    eventBar.style.borderTopRightRadius = '0';
-                    eventBar.style.borderBottomRightRadius = '0';
-                    eventBar.style.width = `calc(${eventBar.style.width} + 2px)`;
-                }
-
-                eventsContainer.appendChild(eventBar);
+                bar.style.left = `calc(${(startIndex / 7) * 100}% + 2px)`;
+                bar.style.width = `calc(${((endIndex - startIndex + 1) / 7) * 100}% - 4px)`;
+                bar.style.top = `${trackIndex * 26}px`;
+                eventsContainer.appendChild(bar);
             });
             
-            // Adjust row height based on number of tracks
-            const baseHeight = 120; // Increased base height
-            const contentHeight = tracks.length * 26 + 40; 
-            const rowHeight = Math.max(baseHeight, contentHeight);
-            weekRow.style.height = `${rowHeight}px`;
-
+            weekRow.style.height = `${Math.max(120, tracks.length * 26 + 40)}px`;
             weekRow.appendChild(eventsContainer);
             calendarElement.appendChild(weekRow);
         });
+        console.log("Calendar rendered.");
     }
 
-    function getEventsForWeek(weekStart, weekEnd) {
-        return schedules.filter(s => {
-            const start = new Date(s.startDate + 'T00:00:00');
-            const end = new Date(s.endDate + 'T00:00:00');
-            return start <= weekEnd && end >= weekStart;
+    function getEventsForWeek(s, e) {
+        return schedules.filter(ev => {
+            const start = new Date(ev.startDate + 'T00:00:00');
+            const end = new Date(ev.endDate + 'T00:00:00');
+            return start <= e && end >= s;
         });
     }
 
-    function getHolidaysForWeek(weekStart, weekEnd) {
-        // Korean Holidays for 2026
-        const holidays = [
-            { id: 'h1', text: "신정", startDate: '2026-01-01', endDate: '2026-01-01', type: 'holiday' },
-            { id: 'h2', text: "설날", startDate: '2026-02-16', endDate: '2026-02-18', type: 'holiday' },
-            { id: 'h3', text: "삼일절", startDate: '2026-03-01', endDate: '2026-03-01', type: 'holiday' },
-            { id: 'h4', text: "어린이날", startDate: '2026-05-05', endDate: '2026-05-05', type: 'holiday' },
-            { id: 'h5', text: "부처님 오신 날", startDate: '2026-05-24', endDate: '2026-05-24', type: 'holiday' },
-            { id: 'h6', text: "현충일", startDate: '2026-06-06', endDate: '2026-06-06', type: 'holiday' },
-            { id: 'h7', text: "광복절", startDate: '2026-08-15', endDate: '2026-08-15', type: 'holiday' },
-            { id: 'h8', text: "추석", startDate: '2026-09-24', endDate: '2026-09-26', type: 'holiday' },
-            { id: 'h9', text: "개천절", startDate: '2026-10-03', endDate: '2026-10-03', type: 'holiday' },
-            { id: 'h10', text: "한글날", startDate: '2026-10-09', endDate: '2026-10-09', type: 'holiday' },
-            { id: 'h11', text: "성탄절", startDate: '2026-12-25', endDate: '2026-12-25', type: 'holiday' },
-            // Substitute Holidays for 2026
-            { id: 'h12', text: "대체공휴일", startDate: '2026-03-02', endDate: '2026-03-02', type: 'holiday' },
-            { id: 'h13', text: "대체공휴일", startDate: '2026-05-25', endDate: '2026-05-25', type: 'holiday' }
-        ];
-
-        return holidays.filter(h => {
-            const start = new Date(h.startDate + 'T00:00:00');
-            const end = new Date(h.endDate + 'T00:00:00');
-            return start <= weekEnd && end >= weekStart;
-        });
-    }
-
-    function getRecurringSpecialEvents(weekStart, weekEnd) {
-        const specialEvents = [];
-        let current = new Date(weekStart);
-        while (current <= weekEnd) {
-            const month = current.getMonth(); // 0-indexed (Jan is 0)
-            const date = current.getDate();
-            
-            // May 18 (Month 4)
-            if (month === 4 && date === 18) {
-                specialEvents.push({
-                    id: `special-may-18-${current.getFullYear()}`,
-                    text: "❤️ HBD ❤️",
-                    startDate: formatDate(current),
-                    endDate: formatDate(current),
-                    type: 'special'
-                });
-            }
-            
-            // October 31 (Month 9)
-            if (month === 9 && date === 31) {
-                specialEvents.push({
-                    id: `special-oct-31-${current.getFullYear()}`,
-                    text: "❤️ HBD ❤️",
-                    startDate: formatDate(current),
-                    endDate: formatDate(current),
-                    type: 'special'
-                });
-            }
-            current.setDate(current.getDate() + 1);
-        }
-        return specialEvents;
-    }
-
-    function getWeeksInMonth(year, month) {
+    function getWeeksInMonth(y, m) {
         const weeks = [];
-        const firstDate = new Date(year, month, 1);
-        const lastDate = new Date(year, month + 1, 0);
-        
-        // Start from the Sunday before or on the 1st
-        let current = new Date(firstDate);
-        current.setDate(current.getDate() - current.getDay());
-
-        // Loop until we pass the end of the month
-        // We also want to include the full week that contains the last day
-        const endView = new Date(lastDate);
-        endView.setDate(endView.getDate() + (6 - endView.getDay()));
-
-        while(current <= endView) {
-            const weekStart = new Date(current);
-            const weekEnd = new Date(current);
-            weekEnd.setDate(weekStart.getDate() + 6);
-            weeks.push({ start: weekStart, end: weekEnd });
-            current.setDate(current.getDate() + 7);
+        let curr = new Date(y, m, 1);
+        curr.setDate(curr.getDate() - curr.getDay());
+        const end = new Date(y, m + 1, 0);
+        end.setDate(end.getDate() + (6 - end.getDay()));
+        while (curr <= end) {
+            const wStart = new Date(curr);
+            const wEnd = new Date(curr);
+            wEnd.setDate(wEnd.getDate() + 6);
+            weeks.push({ start: wStart, end: wEnd });
+            curr.setDate(curr.getDate() + 7);
         }
         return weeks;
     }
-    
-    function formatDate(date) {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
+
+    function formatDate(d) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     }
 
-    // --- Modal & Data Management ---
+    function getHolidaysForWeek(s, e) {
+        const hols = [
+            {id: 'h1', text: "신정", startDate: '2026-01-01', endDate: '2026-01-01', type: 'holiday'},
+            {id: 'h2', text: "설날", startDate: '2026-02-16', endDate: '2026-02-18', type: 'holiday'},
+            {id: 'h3', text: "삼일절", startDate: '2026-03-01', endDate: '2026-03-01', type: 'holiday'},
+            {id: 'h4', text: "어린이날", startDate: '2026-05-05', endDate: '2026-05-05', type: 'holiday'},
+            {id: 'h5', text: "부처님 오신 날", startDate: '2026-05-24', endDate: '2026-05-24', type: 'holiday'},
+            {id: 'h6', text: "현충일", startDate: '2026-06-06', endDate: '2026-06-06', type: 'holiday'},
+            {id: 'h7', text: "광복절", startDate: '2026-08-15', endDate: '2026-08-15', type: 'holiday'},
+            {id: 'h8', text: "추석", startDate: '2026-09-24', endDate: '2026-09-26', type: 'holiday'},
+            {id: 'h9', text: "개천절", startDate: '2026-10-03', endDate: '2026-10-03', type: 'holiday'},
+            {id: 'h10', text: "한글날", startDate: '2026-10-09', endDate: '2026-10-09', type: 'holiday'},
+            {id: 'h11', text: "성탄절", startDate: '2026-12-25', endDate: '2026-12-25', type: 'holiday'}
+        ];
+        return hols.filter(h => {
+            const start = new Date(h.startDate + 'T00:00:00');
+            const end = new Date(h.endDate + 'T00:00:00');
+            return start <= e && end >= s;
+        });
+    }
 
-    function openScheduleListModal(dateString) {
-        currentSelectedDate = dateString;
-        listDateHeading.textContent = dateString;
+    function getRecurringSpecialEvents(s, e) {
+        const special = [];
+        let curr = new Date(s);
+        while (curr <= e) {
+            const m = curr.getMonth();
+            const d = curr.getDate();
+            if ((m === 4 && d === 18) || (m === 9 && d === 31)) {
+                special.push({id: `sp-${m}-${d}`, text: "❤️ HBD ❤️", startDate: formatDate(curr), endDate: formatDate(curr), type: 'special'});
+            }
+            curr.setDate(curr.getDate() + 1);
+        }
+        return special;
+    }
+
+    // --- Modal Logic ---
+    function openScheduleListModal(d) {
+        currentSelectedDate = d;
+        listDateHeading.textContent = d;
         scheduleListContainer.innerHTML = '';
         listModal.style.display = 'flex';
 
-        // Calculate week range for this date to leverage existing getXXXForWeek functions
-        const dateObj = new Date(dateString + 'T00:00:00');
-        const weekStart = new Date(dateObj);
-        weekStart.setDate(dateObj.getDate() - dateObj.getDay());
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
-
-        // Fetch all potential events
-        const userEvents = getEventsForWeek(weekStart, weekEnd);
-        const holidays = getHolidaysForWeek(weekStart, weekEnd);
-        const specialEvents = getRecurringSpecialEvents(weekStart, weekEnd);
-        const allEvents = [...userEvents, ...holidays, ...specialEvents];
-
-        // Filter for this specific day
-        const dayEvents = allEvents.filter(event => {
-            const start = new Date(event.startDate + 'T00:00:00');
-            const end = new Date(event.endDate + 'T00:00:00');
-            const target = new Date(dateString + 'T00:00:00');
-            return target >= start && target <= end;
-        });
-
-        // Sort events
-        dayEvents.sort((a, b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'));
+        const dayEvents = [
+            ...getEventsForWeek(new Date(d + 'T00:00:00'), new Date(d + 'T23:59:59')),
+            ...getHolidaysForWeek(new Date(d + 'T00:00:00'), new Date(d + 'T23:59:59')),
+            ...getRecurringSpecialEvents(new Date(d + 'T00:00:00'), new Date(d + 'T23:59:59'))
+        ];
 
         if (dayEvents.length === 0) {
             scheduleListContainer.innerHTML = '<p style="color:#999; text-align:center;">No schedules</p>';
         } else {
-            dayEvents.forEach(event => {
+            dayEvents.forEach(ev => {
                 const item = document.createElement('div');
-                item.classList.add('list-item');
-                if (event.type === 'holiday' || event.type === 'special') item.classList.add('holiday');
-
-                // Click to edit from list view (only user events)
-                if (event.type !== 'holiday' && event.type !== 'special') {
-                    item.style.cursor = 'pointer';
-                    item.addEventListener('click', () => {
-                        closeListModal();
-                        openAddScheduleModal(null, event);
-                    });
+                item.className = `list-item ${ev.type === 'holiday' ? 'holiday' : ''}`;
+                item.innerHTML = `<div class="list-item-time">${ev.startTime || 'All Day'}</div><div class="list-item-title">${ev.text}</div>`;
+                if (ev.type !== 'holiday' && ev.type !== 'special') {
+                    item.onclick = () => { closeListModal(); openAddScheduleModal(null, ev); };
                 }
-
-                const timeDiv = document.createElement('div');
-                timeDiv.classList.add('list-item-time');
-                if (event.startDate !== event.endDate) {
-                    timeDiv.textContent = 'All Day (Multi-day)';
-                } else if (event.startTime) {
-                    timeDiv.textContent = `${event.startTime} - ${event.endTime || ''}`;
-                } else {
-                    timeDiv.textContent = 'All Day';
-                }
-
-                const titleDiv = document.createElement('div');
-                titleDiv.classList.add('list-item-title');
-                titleDiv.textContent = event.text;
-
-                item.appendChild(timeDiv);
-                item.appendChild(titleDiv);
                 scheduleListContainer.appendChild(item);
             });
         }
     }
 
-        function closeListModal() {
-            listModal.style.display = 'none';
+    function closeListModal() { listModal.style.display = 'none'; }
+
+    function openAddScheduleModal(d, s = null) {
+        modal.style.display = 'flex';
+        editingScheduleId = s ? s.id : null;
+        if (s) {
+            scheduleTextInput.value = s.text; startDateInput.value = s.startDate; endDateInput.value = s.endDate;
+            startTimeInput.value = s.startTime || ''; endTimeInput.value = s.endTime || '';
+        } else {
+            startDateInput.value = d; endDateInput.value = d; scheduleTextInput.value = '';
+            startTimeInput.value = ''; endTimeInput.value = '';
         }
-    
-            function openAddScheduleModal(dateString, scheduleToEdit = null) {
-                modal.style.display = 'flex';
-                const modalTitle = modal.querySelector('h2');
-                
-                // Reset recurrence state
-                enableRecurrenceCheckbox.checked = false;
-                recurrenceOptions.style.display = 'none';
-                recurrenceIntervalInput.value = 7;
-                recurrenceCountInput.value = 1;
-        
-                if (scheduleToEdit) {
-                    // Edit Mode
-                    editingScheduleId = scheduleToEdit.id;
-                    modalTitle.textContent = "Edit Schedule";
-                    scheduleTextInput.value = scheduleToEdit.text;
-                    startDateInput.value = scheduleToEdit.startDate;
-                    endDateInput.value = scheduleToEdit.endDate;
-                    startTimeInput.value = scheduleToEdit.startTime || '';
-                    endTimeInput.value = scheduleToEdit.endTime || '';
-                    
-                    // Disable recurrence when editing an existing single instance
-                    enableRecurrenceCheckbox.disabled = true;
-                } else {
-                    // Create Mode
-                    editingScheduleId = null;
-                    modalTitle.textContent = "Add Schedule";
-                    startDateInput.value = dateString;
-                    endDateInput.value = dateString;
-                    scheduleTextInput.value = '';
-                    startTimeInput.value = '';
-                    endTimeInput.value = '';
-                    
-                    enableRecurrenceCheckbox.disabled = false;
-                }
-            }    
-            function closeAddScheduleModal() {
-                modal.style.display = 'none';
-                scheduleTextInput.value = '';
-                startDateInput.value = '';
-                endDateInput.value = '';
-                startTimeInput.value = '';
-                endTimeInput.value = '';
-                editingScheduleId = null; // Reset edit state
-                
-                enableRecurrenceCheckbox.checked = false;
-                recurrenceOptions.style.display = 'none';
-            }    function saveSchedule() {
-        const text = scheduleTextInput.value.trim();
-        const startDate = startDateInput.value;
-        const endDate = endDateInput.value;
-        const startTime = startTimeInput.value;
-        const endTime = endTimeInput.value;
-        
-        const isRecurrenceEnabled = enableRecurrenceCheckbox.checked && !enableRecurrenceCheckbox.disabled;
+    }
 
-        if (text && startDate && endDate) {
-            if (new Date(startDate) > new Date(endDate)) {
-                alert("End date cannot be before start date.");
-                return;
-            }
+    function closeAddScheduleModal() { modal.style.display = 'none'; }
 
-            if (editingScheduleId) {
-                // Update existing schedule (single instance)
-                const scheduleIndex = schedules.findIndex(s => s.id === editingScheduleId);
-                if (scheduleIndex !== -1) {
-                    schedules[scheduleIndex] = {
-                        ...schedules[scheduleIndex],
-                        text,
-                        startDate,
-                        endDate,
-                        startTime,
-                        endTime
-                    };
-                }
-            } else if (isRecurrenceEnabled) {
-                // Create recurring schedules
-                const interval = parseInt(recurrenceIntervalInput.value, 10);
-                const count = parseInt(recurrenceCountInput.value, 10);
-                
-                if (interval > 0 && count > 0) {
-                    const baseStart = new Date(startDate);
-                    const baseEnd = new Date(endDate);
-                    
-                    for (let i = 0; i < count; i++) {
-                        const nextStart = new Date(baseStart);
-                        nextStart.setDate(baseStart.getDate() + (i * interval));
-                        
-                        const nextEnd = new Date(baseEnd);
-                        nextEnd.setDate(baseEnd.getDate() + (i * interval));
-                        
-                        const newSchedule = {
-                            id: Date.now() + i, // Unique ID
-                            text,
-                            startDate: formatDate(nextStart),
-                            endDate: formatDate(nextEnd),
-                            startTime,
-                            endTime
-                        };
-                        schedules.push(newSchedule);
-                    }
-                }
-            } else {
-                // Create single new schedule
-                const newSchedule = {
-                    id: Date.now(),
-                    text,
-                    startDate,
-                    endDate,
-                    startTime,
-                    endTime
-                };
-                schedules.push(newSchedule);
-            }
-            
-            saveSchedulesToLocalStorage();
-            renderCalendar();
+    async function saveSchedule() {
+        if (!supabaseClient) { alert("Supabase not configured."); return; }
+        const payload = { 
+            text: scheduleTextInput.value.trim(), 
+            start_date: startDateInput.value, 
+            end_date: endDateInput.value, 
+            start_time: startTimeInput.value, 
+            end_time: endTimeInput.value 
+        };
+        if (!payload.text) return;
+
+        try {
+            const { error } = editingScheduleId 
+                ? await supabaseClient.from('schedules').update(payload).eq('id', editingScheduleId)
+                : await supabaseClient.from('schedules').insert([payload]);
+            if (error) throw error;
+            await fetchSchedules();
             closeAddScheduleModal();
+        } catch (e) {
+            alert("Error saving: " + e.message);
         }
     }
 
-    function deleteSchedule(id) {
-        schedules = schedules.filter(schedule => schedule.id !== id);
-        saveSchedulesToLocalStorage();
-        renderCalendar();
+    async function deleteSchedule(id) {
+        if (supabaseClient && confirm("Delete?")) {
+            await supabaseClient.from('schedules').delete().eq('id', id);
+            await fetchSchedules();
+        }
     }
 
-    function saveSchedulesToLocalStorage() {
-        localStorage.setItem('schedules', JSON.stringify(schedules));
-    }
+    // --- Event Listeners ---
+    prevMonthButton.onclick = () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); };
+    nextMonthButton.onclick = () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); };
+    closeModalButton.onclick = closeAddScheduleModal;
+    saveScheduleButton.onclick = saveSchedule;
+    closeListModalButton.onclick = closeListModal;
+    openAddModalBtn.onclick = () => { closeListModal(); openAddScheduleModal(currentSelectedDate); };
+    enableRecurrenceCheckbox.onchange = (e) => { recurrenceOptions.style.display = e.target.checked ? 'block' : 'none'; };
 
-    prevMonthButton.addEventListener('click', () => {
-        currentDate.setMonth(currentDate.getMonth() - 1);
-        renderCalendar();
-    });
+    window.onclick = (e) => {
+        if (e.target === modal) closeAddScheduleModal();
+        if (e.target === listModal) closeListModal();
+    };
 
-    nextMonthButton.addEventListener('click', () => {
-        currentDate.setMonth(currentDate.getMonth() + 1);
-        renderCalendar();
-    });
-
-    closeModalButton.addEventListener('click', closeAddScheduleModal);
-    saveScheduleButton.addEventListener('click', saveSchedule);
-
-    // Toggle recurrence options
-    enableRecurrenceCheckbox.addEventListener('change', (e) => {
-        recurrenceOptions.style.display = e.target.checked ? 'block' : 'none';
-    });
-
-    // Event Listeners for List Modal
-    closeListModalButton.addEventListener('click', closeListModal);
-    openAddModalBtn.addEventListener('click', () => {
-        closeListModal();
-        if (currentSelectedDate) openAddScheduleModal(currentSelectedDate);
-    });
-
-    window.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            closeAddScheduleModal();
-        }
-        if (e.target === listModal) {
-            closeListModal();
-        }
-    });
-
+    // 4. Final Initialization
+    console.log("Initial rendering...");
     renderCalendar();
+    
+    // Fetch data asynchronously without blocking
+    fetchSchedules();
 });
