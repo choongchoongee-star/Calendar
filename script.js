@@ -3,32 +3,161 @@
 const SUPABASE_URL = 'https://rztrkeejliampmzcqbmx.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6dHJrZWVqbGlhbXBtemNxYm14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDE4MTksImV4cCI6MjA4NDY3NzgxOX0.ind5OQoPfWuAd_StssdeIDlrKxotW3XPhGOV63NqUWY';
 
-// Initialize Supabase safely
-let supabaseClient = null;
+// Data Manager
+const DataManager = {
+    client: null,
+    schedules: [],
 
-function initSupabase() {
-    if (typeof window.supabase === 'undefined') {
-        console.warn("Supabase library not loaded. Data will not persist.");
-        return;
+    init(url, key) {
+        if (typeof window.supabase === 'undefined') {
+            console.warn("Supabase library not loaded. Data will not persist.");
+            return;
+        }
+        if (url.includes('YOUR_PROJECT_ID')) {
+             console.warn("Supabase credentials not set. Using local mode.");
+             return;
+        }
+        try {
+            this.client = window.supabase.createClient(url, key);
+            console.log("Supabase initialized successfully.");
+        } catch (e) {
+            console.error("Failed to initialize Supabase:", e);
+        }
+    },
+
+    async fetchSchedules() {
+        if (!this.client) {
+            console.log("Skipping fetch: Supabase not initialized.");
+            return [];
+        }
+        console.log("Fetching schedules...");
+        const { data, error } = await this.client.from('schedules').select('*');
+        if (error) throw error;
+        if (data) {
+             console.log(`Fetched ${data.length} schedules.`);
+             this.schedules = data.map(item => ({
+                id: item.id,
+                text: item.text,
+                startDate: item.start_date,
+                endDate: item.end_date,
+                startTime: item.start_time,
+                endTime: item.end_time,
+                groupId: item.group_id,
+                color: item.color
+            }));
+        }
+        return this.schedules;
+    },
+
+    async addSchedule(payload) {
+        if (!this.client) throw new Error("Supabase not initialized");
+        const { error } = await this.client.from('schedules').insert([payload]);
+        if (error) throw error;
+    },
+    
+    async addSchedules(payloads) {
+        if (!this.client) throw new Error("Supabase not initialized");
+        const { error } = await this.client.from('schedules').insert(payloads);
+        if (error) throw error;
+    },
+
+    async updateSchedule(id, payload) {
+        if (!this.client) throw new Error("Supabase not initialized");
+        const { error } = await this.client.from('schedules').update(payload).eq('id', id);
+        if (error) throw error;
+    },
+
+    async upsertSchedules(updates) {
+         if (!this.client) throw new Error("Supabase not initialized");
+         const { error } = await this.client.from('schedules').upsert(updates);
+         if (error) throw error;
+    },
+
+    async deleteSchedule(id) {
+        if (!this.client) throw new Error("Supabase not initialized");
+        const { error } = await this.client.from('schedules').delete().eq('id', id);
+        if (error) throw error;
+    },
+    
+    getSchedules() {
+        return this.schedules;
     }
-    // Check if placeholders are still present
-    if (SUPABASE_URL.includes('YOUR_PROJECT_ID')) {
-        console.warn("Supabase credentials not set. Using local mode.");
-        return;
+};
+
+// Calendar Utilities
+const CalendarUtils = {
+    getWeeksInMonth(y, m) {
+        const weeks = [];
+        let curr = new Date(y, m, 1);
+        curr.setDate(curr.getDate() - curr.getDay());
+        const end = new Date(y, m + 1, 0);
+        end.setDate(end.getDate() + (6 - end.getDay()));
+        while (curr <= end) {
+            const wStart = new Date(curr);
+            const wEnd = new Date(curr);
+            wEnd.setDate(wEnd.getDate() + 6);
+            weeks.push({ start: wStart, end: wEnd });
+            curr.setDate(curr.getDate() + 7);
+        }
+        return weeks;
+    },
+
+    formatDate(d) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    },
+
+    getHolidaysForWeek(s, e) {
+        const hols = [
+            {id: 'h1', text: "신정", startDate: '2026-01-01', endDate: '2026-01-01', type: 'holiday'},
+            {id: 'h2', text: "설날", startDate: '2026-02-16', endDate: '2026-02-18', type: 'holiday'},
+            {id: 'h3', text: "삼일절", startDate: '2026-03-01', endDate: '2026-03-01', type: 'holiday'},
+            {id: 'h4', text: "어린이날", startDate: '2026-05-05', endDate: '2026-05-05', type: 'holiday'},
+            {id: 'h5', text: "부처님 오신 날", startDate: '2026-05-24', endDate: '2026-05-24', type: 'holiday'},
+            {id: 'h6', text: "현충일", startDate: '2026-06-06', endDate: '2026-06-06', type: 'holiday'},
+            {id: 'h7', text: "광복절", startDate: '2026-08-15', endDate: '2026-08-15', type: 'holiday'},
+            {id: 'h8', text: "추석", startDate: '2026-09-24', endDate: '2026-09-26', type: 'holiday'},
+            {id: 'h9', text: "개천절", startDate: '2026-10-03', endDate: '2026-10-03', type: 'holiday'},
+            {id: 'h10', text: "한글날", startDate: '2026-10-09', endDate: '2026-10-09', type: 'holiday'},
+            {id: 'h11', text: "성탄절", startDate: '2026-12-25', endDate: '2026-12-25', type: 'holiday'}
+        ];
+        return hols.filter(h => {
+            const start = new Date(h.startDate + 'T00:00:00');
+            const end = new Date(h.endDate + 'T00:00:00');
+            return start <= e && end >= s;
+        });
+    },
+
+    getRecurringSpecialEvents(s, e) {
+        const special = [];
+        let curr = new Date(s);
+        while (curr <= e) {
+            const m = curr.getMonth();
+            const d = curr.getDate();
+            if ((m === 4 && d === 18) || (m === 9 && d === 31)) {
+                special.push({id: `sp-${m}-${d}`, text: "HBD❤️", startDate: this.formatDate(curr), endDate: this.formatDate(curr), type: 'special'});
+            }
+            if (m === 10 && d === 9) {
+                special.push({id: `sp-${m}-${d}`, text: "❤️", startDate: this.formatDate(curr), endDate: this.formatDate(curr), type: 'special'});
+            }
+            curr.setDate(curr.getDate() + 1);
+        }
+        return special;
+    },
+
+    getEventsForWeek(schedules, s, e) {
+        return schedules.filter(ev => {
+            const start = new Date(ev.startDate + 'T00:00:00');
+            const end = new Date(ev.endDate + 'T00:00:00');
+            return start <= e && end >= s;
+        });
     }
-    try {
-        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        console.log("Supabase initialized successfully.");
-    } catch (e) {
-        console.error("Failed to initialize Supabase:", e);
-    }
-}
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log("DOM loaded. Starting initialization...");
 
     // 1. Initialize Supabase
-    initSupabase();
+    DataManager.init(SUPABASE_URL, SUPABASE_KEY);
 
     // 2. Select Elements
     const yearSelect = document.getElementById('year-select');
@@ -82,33 +211,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const scheduleListContainer = document.getElementById('schedule-list-container');
     const openAddModalBtn = document.getElementById('open-add-modal-btn');
 
+    // Color Palette logic
+    const colorPalette = [
+        '#47A9F3', '#8FA9C4', '#B884D6', '#FF5A00',
+        '#00B38F', '#6FD0C0', '#FFA0AD', '#F5333F',
+        '#7ED957', '#D6DB5A', '#FFD84A', '#FFA31A'
+    ];
+    const paletteContainer = document.getElementById('color-palette');
+
+    function renderPalette() {
+        paletteContainer.innerHTML = '';
+        colorPalette.forEach(color => {
+            const circle = document.createElement('div');
+            circle.className = 'color-option';
+            circle.style.backgroundColor = color;
+            if (color === selectedColor) circle.classList.add('selected');
+            circle.onclick = () => {
+                selectedColor = color;
+                renderPalette();
+            };
+            paletteContainer.appendChild(circle);
+        });
+    }
+
     let currentDate = new Date();
     let currentSelectedDate = null;
     let editingScheduleId = null;
+    let editingGroupId = null;
+    let editingOriginalStartDate = null;
+    let selectedColor = '#47A9F3'; // Default color
     let schedules = [];
 
     // 3. Define Functions
     async function fetchSchedules() {
-        if (!supabaseClient) {
-            console.log("Skipping fetch: Supabase not initialized.");
-            renderCalendar(); // Render anyway in case of no Supabase
-            return;
-        }
-        console.log("Fetching schedules...");
         try {
-            const { data, error } = await supabaseClient.from('schedules').select('*');
-            if (error) throw error;
-            if (data) {
-                console.log(`Fetched ${data.length} schedules.`);
-                schedules = data.map(item => ({
-                    id: item.id,
-                    text: item.text,
-                    startDate: item.start_date,
-                    endDate: item.end_date,
-                    startTime: item.start_time,
-                    endTime: item.end_time
-                }));
-            }
+            schedules = await DataManager.fetchSchedules();
         } catch (err) {
             console.error("Error fetching data:", err);
         } finally {
@@ -126,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
         yearSelect.value = year;
         monthSelect.value = month;
         
-        const weeks = getWeeksInMonth(year, month);
+        const weeks = CalendarUtils.getWeeksInMonth(year, month);
         
         weeks.forEach(week => {
             const weekRow = document.createElement('div');
@@ -141,7 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 dayEl.classList.add('day-cell');
                 if (currentDay.getMonth() !== month) dayEl.classList.add('other-month');
 
-                const dateString = formatDate(currentDay);
+                const dateString = CalendarUtils.formatDate(currentDay);
                 dayEl.dataset.date = dateString;
 
                 const dayNumber = document.createElement('span');
@@ -159,9 +296,9 @@ document.addEventListener('DOMContentLoaded', () => {
             eventsContainer.classList.add('events-container');
             
             const weekEvents = [
-                ...getEventsForWeek(week.start, week.end),
-                ...getHolidaysForWeek(week.start, week.end),
-                ...getRecurringSpecialEvents(week.start, week.end)
+                ...CalendarUtils.getEventsForWeek(schedules, week.start, week.end),
+                ...CalendarUtils.getHolidaysForWeek(week.start, week.end),
+                ...CalendarUtils.getRecurringSpecialEvents(week.start, week.end)
             ];
             
             // Sort events: Multi-day first
@@ -197,14 +334,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const bar = document.createElement('div');
                 bar.classList.add('event-bar');
                 if (event.type === 'holiday') bar.classList.add('holiday');
+                
+                if (event.color && event.type !== 'holiday' && event.type !== 'special') {
+                    bar.style.backgroundColor = event.color;
+                    bar.style.color = '#fff';
+                }
+
                 bar.textContent = (event.startDate === event.endDate && event.startTime) ? `${event.startTime} ${event.text}` : event.text;
                 
                 if (event.type !== 'holiday' && event.type !== 'special') {
-                    const del = document.createElement('span');
-                    del.innerHTML = '&times;';
-                    del.classList.add('delete-btn');
-                    del.onclick = (e) => { e.stopPropagation(); deleteSchedule(event.id); };
-                    bar.appendChild(del);
                     bar.onclick = () => openAddScheduleModal(null, event);
                 }
 
@@ -221,72 +359,6 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("Calendar rendered.");
     }
 
-    function getEventsForWeek(s, e) {
-        return schedules.filter(ev => {
-            const start = new Date(ev.startDate + 'T00:00:00');
-            const end = new Date(ev.endDate + 'T00:00:00');
-            return start <= e && end >= s;
-        });
-    }
-
-    function getWeeksInMonth(y, m) {
-        const weeks = [];
-        let curr = new Date(y, m, 1);
-        curr.setDate(curr.getDate() - curr.getDay());
-        const end = new Date(y, m + 1, 0);
-        end.setDate(end.getDate() + (6 - end.getDay()));
-        while (curr <= end) {
-            const wStart = new Date(curr);
-            const wEnd = new Date(curr);
-            wEnd.setDate(wEnd.getDate() + 6);
-            weeks.push({ start: wStart, end: wEnd });
-            curr.setDate(curr.getDate() + 7);
-        }
-        return weeks;
-    }
-
-    function formatDate(d) {
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    }
-
-    function getHolidaysForWeek(s, e) {
-        const hols = [
-            {id: 'h1', text: "신정", startDate: '2026-01-01', endDate: '2026-01-01', type: 'holiday'},
-            {id: 'h2', text: "설날", startDate: '2026-02-16', endDate: '2026-02-18', type: 'holiday'},
-            {id: 'h3', text: "삼일절", startDate: '2026-03-01', endDate: '2026-03-01', type: 'holiday'},
-            {id: 'h4', text: "어린이날", startDate: '2026-05-05', endDate: '2026-05-05', type: 'holiday'},
-            {id: 'h5', text: "부처님 오신 날", startDate: '2026-05-24', endDate: '2026-05-24', type: 'holiday'},
-            {id: 'h6', text: "현충일", startDate: '2026-06-06', endDate: '2026-06-06', type: 'holiday'},
-            {id: 'h7', text: "광복절", startDate: '2026-08-15', endDate: '2026-08-15', type: 'holiday'},
-            {id: 'h8', text: "추석", startDate: '2026-09-24', endDate: '2026-09-26', type: 'holiday'},
-            {id: 'h9', text: "개천절", startDate: '2026-10-03', endDate: '2026-10-03', type: 'holiday'},
-            {id: 'h10', text: "한글날", startDate: '2026-10-09', endDate: '2026-10-09', type: 'holiday'},
-            {id: 'h11', text: "성탄절", startDate: '2026-12-25', endDate: '2026-12-25', type: 'holiday'}
-        ];
-        return hols.filter(h => {
-            const start = new Date(h.startDate + 'T00:00:00');
-            const end = new Date(h.endDate + 'T00:00:00');
-            return start <= e && end >= s;
-        });
-    }
-
-    function getRecurringSpecialEvents(s, e) {
-        const special = [];
-        let curr = new Date(s);
-        while (curr <= e) {
-            const m = curr.getMonth();
-            const d = curr.getDate();
-            if ((m === 4 && d === 18) || (m === 9 && d === 31)) {
-                special.push({id: `sp-${m}-${d}`, text: "HBD❤️", startDate: formatDate(curr), endDate: formatDate(curr), type: 'special'});
-            }
-            if (m === 10 && d === 9) {
-                special.push({id: `sp-${m}-${d}`, text: "❤️", startDate: formatDate(curr), endDate: formatDate(curr), type: 'special'});
-            }
-            curr.setDate(curr.getDate() + 1);
-        }
-        return special;
-    }
-
     // --- Modal Logic ---
     function openScheduleListModal(d) {
         currentSelectedDate = d;
@@ -295,9 +367,9 @@ document.addEventListener('DOMContentLoaded', () => {
         listModal.style.display = 'flex';
 
         const dayEvents = [
-            ...getEventsForWeek(new Date(d + 'T00:00:00'), new Date(d + 'T23:59:59')),
-            ...getHolidaysForWeek(new Date(d + 'T00:00:00'), new Date(d + 'T23:59:59')),
-            ...getRecurringSpecialEvents(new Date(d + 'T00:00:00'), new Date(d + 'T23:59:59'))
+            ...CalendarUtils.getEventsForWeek(schedules, new Date(d + 'T00:00:00'), new Date(d + 'T23:59:59')),
+            ...CalendarUtils.getHolidaysForWeek(new Date(d + 'T00:00:00'), new Date(d + 'T23:59:59')),
+            ...CalendarUtils.getRecurringSpecialEvents(new Date(d + 'T00:00:00'), new Date(d + 'T23:59:59'))
         ];
 
         if (dayEvents.length === 0) {
@@ -306,6 +378,9 @@ document.addEventListener('DOMContentLoaded', () => {
             dayEvents.forEach(ev => {
                 const item = document.createElement('div');
                 item.className = `list-item ${ev.type === 'holiday' ? 'holiday' : ''}`;
+                if (ev.color && ev.type !== 'holiday' && ev.type !== 'special') {
+                    item.style.borderLeftColor = ev.color;
+                }
                 
                 // Create content container for text
                 const contentDiv = document.createElement('div');
@@ -345,8 +420,14 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.style.display = 'flex';
         const modalTitle = modal.querySelector('h2');
         editingScheduleId = s ? s.id : null;
+        editingGroupId = s ? s.groupId : null;
+        editingOriginalStartDate = s ? s.startDate : null;
+        
+        selectedColor = s ? (s.color || colorPalette[0]) : colorPalette[0];
+        renderPalette();
+
         if (s) {
-            modalTitle.textContent = "일정 수정";
+            modalTitle.textContent = s.groupId ? "일정 수정 (전체 반복 일정)" : "일정 수정";
             scheduleTextInput.value = s.text; startDateInput.value = s.startDate; endDateInput.value = s.endDate;
             startTimeInput.value = s.startTime || ''; endTimeInput.value = s.endTime || '';
             
@@ -369,13 +450,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function closeAddScheduleModal() { modal.style.display = 'none'; }
 
     async function saveSchedule() {
-        if (!supabaseClient) { alert("Supabase가 설정되지 않았습니다."); return; }
         const payload = { 
             text: scheduleTextInput.value.trim(), 
             start_date: startDateInput.value, 
             end_date: endDateInput.value, 
             start_time: startTimeInput.value, 
-            end_time: endTimeInput.value 
+            end_time: endTimeInput.value,
+            color: selectedColor
         };
         if (!payload.text) return;
 
@@ -392,6 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const payloads = [];
                     const baseStart = new Date(startDateInput.value);
                     const baseEnd = new Date(endDateInput.value);
+                    const groupId = Math.random().toString(36).substring(2, 15); // Generate Group ID
                     
                     for (let i = 0; i < count; i++) {
                         const nextStart = new Date(baseStart);
@@ -402,21 +484,52 @@ document.addEventListener('DOMContentLoaded', () => {
                         
                         payloads.push({
                             text: payload.text,
-                            start_date: formatDate(nextStart),
-                            end_date: formatDate(nextEnd),
+                            start_date: CalendarUtils.formatDate(nextStart),
+                            end_date: CalendarUtils.formatDate(nextEnd),
                             start_time: payload.start_time,
-                            end_time: payload.end_time
+                            end_time: payload.end_time,
+                            group_id: groupId,
+                            color: payload.color
                         });
                     }
-                     const { error } = await supabaseClient.from('schedules').insert(payloads);
-                     if (error) throw error;
+                    await DataManager.addSchedules(payloads);
                 }
             } else {
-                // Single Event
-                const { error } = editingScheduleId 
-                    ? await supabaseClient.from('schedules').update(payload).eq('id', editingScheduleId)
-                    : await supabaseClient.from('schedules').insert([payload]);
-                if (error) throw error;
+                if (editingGroupId) {
+                    // Group Update Logic
+                    const newStart = new Date(payload.start_date);
+                    const oldStart = new Date(editingOriginalStartDate);
+                    const diffTime = newStart - oldStart;
+                    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+                    const groupSchedules = schedules.filter(s => s.groupId === editingGroupId);
+                    const updates = groupSchedules.map(s => {
+                        const sStart = new Date(s.startDate);
+                        const sEnd = new Date(s.endDate);
+                        sStart.setDate(sStart.getDate() + diffDays);
+                        sEnd.setDate(sEnd.getDate() + diffDays);
+
+                        return {
+                            id: s.id,
+                            text: payload.text,
+                            start_date: CalendarUtils.formatDate(sStart),
+                            end_date: CalendarUtils.formatDate(sEnd),
+                            start_time: payload.start_time,
+                            end_time: payload.end_time,
+                            group_id: editingGroupId,
+                            color: payload.color
+                        };
+                    });
+                    
+                    await DataManager.upsertSchedules(updates);
+                } else {
+                    // Single Event
+                    if (editingScheduleId) {
+                         await DataManager.updateSchedule(editingScheduleId, payload);
+                    } else {
+                         await DataManager.addSchedule(payload);
+                    }
+                }
             }
 
             await fetchSchedules();
@@ -427,9 +540,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function deleteSchedule(id) {
-        if (supabaseClient && confirm("삭제하시겠습니까?")) {
-            await supabaseClient.from('schedules').delete().eq('id', id);
-            await fetchSchedules();
+        if (confirm("삭제하시겠습니까?")) {
+            try {
+                await DataManager.deleteSchedule(id);
+                await fetchSchedules();
+            } catch (e) {
+                console.error("Delete failed:", e);
+                // If pure local mode, maybe just remove from local array? 
+                // But DataManager throws. Let's handle gracefully.
+                if (e.message !== "Supabase not initialized") {
+                     alert("삭제 실패: " + e.message);
+                }
+            }
         }
     }
 
