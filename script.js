@@ -348,11 +348,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 bar.style.left = `calc(${(startIndex / 7) * 100}% + 2px)`;
                 bar.style.width = `calc(${((endIndex - startIndex + 1) / 7) * 100}% - 4px)`;
-                bar.style.top = `${trackIndex * 23.3}px`;
+                bar.style.top = `${trackIndex * 22.65}px`;
                 eventsContainer.appendChild(bar);
             });
             
-            weekRow.style.height = `${Math.max(120, tracks.length * 23.3 + 40)}px`;
+            weekRow.style.height = `${Math.max(120, tracks.length * 22.65 + 40)}px`;
             weekRow.appendChild(eventsContainer);
             calendarElement.appendChild(weekRow);
         });
