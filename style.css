@@ -109,7 +109,7 @@ header {
     flex: 1; /* 7 equal columns */
     border-right: 1px solid #e0e0e0;
     border-top: 1px solid #e0e0e0;
-    padding: 4px;
+    padding: 2px; /* Reduced from 4px */
     box-sizing: border-box;
     position: relative;
     cursor: pointer;
@@ -128,16 +128,16 @@ header {
     font-size: 0.9rem;
     font-weight: 600;
     display: block;
-    margin-bottom: 24px; /* Space for events to not overlap number immediately */
+    margin-bottom: 24px; /* Restored from 2px */
 }
 
 .day-cell.today .day-number {
     background-color: #4A90E2;
     color: #fff;
     border-radius: 50%;
-    width: 24px;
-    height: 24px;
-    line-height: 24px;
+    width: 24px; /* Restored from 20px */
+    height: 24px; /* Restored from 20px */
+    line-height: 24px; /* Restored from 20px */
     text-align: center;
     display: inline-block;
 }
@@ -145,7 +145,7 @@ header {
 /* Events Layer */
 .events-container {
     position: absolute;
-    top: 30px; /* Leave space for day numbers */
+    top: 30px; /* Restored from 22px */
     left: 0;
     right: 0;
     bottom: 0;
@@ -289,9 +289,9 @@ header {
 
 .list-item {
     background: #f9f9f9;
-    padding: 10px;
+    padding: 3px 10px; /* Reduced vertical padding from 10px */
     border-radius: 4px;
-    margin-bottom: 8px;
+    margin-bottom: 3px; /* Reduced from 8px */
     border-left: 4px solid #4A90E2;
     display: flex;
     justify-content: space-between;
