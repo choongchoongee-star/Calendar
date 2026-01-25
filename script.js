@@ -78,6 +78,12 @@ const DataManager = {
         const { error } = await this.client.from('schedules').delete().eq('id', id);
         if (error) throw error;
     },
+
+    async deleteSchedulesByGroupId(groupId) {
+        if (!this.client) throw new Error("Supabase not initialized");
+        const { error } = await this.client.from('schedules').delete().eq('group_id', groupId);
+        if (error) throw error;
+    },
     
     getSchedules() {
         return this.schedules;
@@ -431,10 +437,30 @@ document.addEventListener('DOMContentLoaded', () => {
             scheduleTextInput.value = s.text; startDateInput.value = s.startDate; endDateInput.value = s.endDate;
             startTimeInput.value = s.startTime || ''; endTimeInput.value = s.endTime || '';
             
-            // Disable recurrence when editing
-            enableRecurrenceCheckbox.disabled = true;
-            enableRecurrenceCheckbox.checked = false;
-            recurrenceOptions.style.display = 'none';
+            // Allow editing recurrence
+            enableRecurrenceCheckbox.disabled = false;
+            
+            if (s.groupId) {
+                enableRecurrenceCheckbox.checked = true;
+                recurrenceOptions.style.display = 'block';
+                
+                // Infer recurrence settings
+                const groupSchedules = schedules.filter(sch => sch.groupId === s.groupId).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+                recurrenceCountInput.value = groupSchedules.length;
+                
+                if (groupSchedules.length > 1) {
+                    const diffTime = Math.abs(new Date(groupSchedules[1].startDate) - new Date(groupSchedules[0].startDate));
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                    recurrenceIntervalInput.value = diffDays;
+                } else {
+                    recurrenceIntervalInput.value = 7; // Default
+                }
+            } else {
+                enableRecurrenceCheckbox.checked = false;
+                recurrenceOptions.style.display = 'none';
+                recurrenceCountInput.value = 1;
+                recurrenceIntervalInput.value = 7;
+            }
         } else {
             modalTitle.textContent = "일정 추가";
             startDateInput.value = d; endDateInput.value = d; scheduleTextInput.value = '';
@@ -444,6 +470,8 @@ document.addEventListener('DOMContentLoaded', () => {
             enableRecurrenceCheckbox.disabled = false;
             enableRecurrenceCheckbox.checked = false;
             recurrenceOptions.style.display = 'none';
+            recurrenceCountInput.value = 1;
+            recurrenceIntervalInput.value = 7;
         }
     }
 
@@ -461,15 +489,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!payload.text) return;
 
         // Recurrence Logic
-        const isRecurrenceEnabled = enableRecurrenceCheckbox.checked && !enableRecurrenceCheckbox.disabled;
+        const isRecurrenceEnabled = enableRecurrenceCheckbox.checked;
         
         try {
             if (isRecurrenceEnabled) {
-                // Handle Recurrence
+                // Handle Recurrence (Create New Series)
                 const interval = parseInt(recurrenceIntervalInput.value, 10);
                 const count = parseInt(recurrenceCountInput.value, 10);
                 
                 if (interval > 0 && count > 0) {
+                    // Cleanup old data if we are editing
+                    if (editingGroupId) {
+                        await DataManager.deleteSchedulesByGroupId(editingGroupId);
+                    } else if (editingScheduleId) {
+                        await DataManager.deleteSchedule(editingScheduleId);
+                    }
+
                     const payloads = [];
                     const baseStart = new Date(startDateInput.value);
                     const baseEnd = new Date(endDateInput.value);
@@ -495,40 +530,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     await DataManager.addSchedules(payloads);
                 }
             } else {
+                // Single Event Mode
                 if (editingGroupId) {
-                    // Group Update Logic
-                    const newStart = new Date(payload.start_date);
-                    const oldStart = new Date(editingOriginalStartDate);
-                    const diffTime = newStart - oldStart;
-                    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-
-                    const groupSchedules = schedules.filter(s => s.groupId === editingGroupId);
-                    const updates = groupSchedules.map(s => {
-                        const sStart = new Date(s.startDate);
-                        const sEnd = new Date(s.endDate);
-                        sStart.setDate(sStart.getDate() + diffDays);
-                        sEnd.setDate(sEnd.getDate() + diffDays);
-
-                        return {
-                            id: s.id,
-                            text: payload.text,
-                            start_date: CalendarUtils.formatDate(sStart),
-                            end_date: CalendarUtils.formatDate(sEnd),
-                            start_time: payload.start_time,
-                            end_time: payload.end_time,
-                            group_id: editingGroupId,
-                            color: payload.color
-                        };
-                    });
-                    
-                    await DataManager.upsertSchedules(updates);
+                    // Was a group, now single -> Delete group, insert single
+                    await DataManager.deleteSchedulesByGroupId(editingGroupId);
+                    await DataManager.addSchedule(payload);
+                } else if (editingScheduleId) {
+                    // Was single, staying single -> Update
+                    await DataManager.updateSchedule(editingScheduleId, payload);
                 } else {
-                    // Single Event
-                    if (editingScheduleId) {
-                         await DataManager.updateSchedule(editingScheduleId, payload);
-                    } else {
-                         await DataManager.addSchedule(payload);
-                    }
+                    // New single event
+                    await DataManager.addSchedule(payload);
                 }
             }
 
