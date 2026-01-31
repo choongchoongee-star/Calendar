@@ -217,6 +217,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const scheduleListContainer = document.getElementById('schedule-list-container');
     const openAddModalBtn = document.getElementById('open-add-modal-btn');
 
+    // Settings Modal elements
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsModal = document.getElementById('settings-modal');
+    const closeSettingsBtn = document.querySelector('.settings-close');
+    const generateLinkBtn = document.getElementById('generate-link-btn');
+
     // Color Palette logic
     const colorPalette = [
         '#47A9F3', '#8FA9C4', '#B884D6', '#FF5A00',
@@ -567,6 +573,54 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- Settings Logic ---
+    function openSettingsModal() {
+        settingsModal.style.display = 'flex';
+    }
+    function closeSettingsModal() {
+        settingsModal.style.display = 'none';
+    }
+
+    function generateICS() {
+        if (!schedules || schedules.length === 0) {
+            alert("저장된 일정이 없습니다.");
+            return;
+        }
+
+        let icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Vibe Calendar//EN\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\n";
+        
+        schedules.forEach(event => {
+            const start = event.startDate.replace(/-/g, '') + (event.startTime ? 'T' + event.startTime.replace(/:/g, '') + '00' : '');
+            const end = event.endDate.replace(/-/g, '') + (event.endTime ? 'T' + event.endTime.replace(/:/g, '') + '00' : '');
+            
+            // Adjust end date for all-day events (must be +1 day for inclusive end)
+            let finalEnd = end;
+            if (!event.startTime) {
+                 const d = new Date(event.endDate);
+                 d.setDate(d.getDate() + 1);
+                 finalEnd = d.toISOString().split('T')[0].replace(/-/g, '');
+            }
+
+            icsContent += "BEGIN:VEVENT\n";
+            icsContent += `UID:${event.id || Math.random()}@vibecalendar\n`;
+            icsContent += `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z\n`;
+            icsContent += `DTSTART;VALUE=${event.startTime ? 'DATE-TIME' : 'DATE'}:${start}\n`;
+            icsContent += `DTEND;VALUE=${event.endTime ? 'DATE-TIME' : 'DATE'}:${finalEnd}\n`;
+            icsContent += `SUMMARY:${event.text}\n`;
+            icsContent += "END:VEVENT\n";
+        });
+
+        icsContent += "END:VCALENDAR";
+
+        const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'calendar.ics';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
     // --- Event Listeners ---
     let touchStartX = 0;
     let touchEndX = 0;
@@ -593,6 +647,10 @@ document.addEventListener('DOMContentLoaded', () => {
         handleSwipe();
     }, {passive: true});
 
+    settingsBtn.onclick = openSettingsModal;
+    closeSettingsBtn.onclick = closeSettingsModal;
+    generateLinkBtn.onclick = generateICS;
+
     prevMonthButton.onclick = () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); };
     nextMonthButton.onclick = () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); };
     
@@ -608,6 +666,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.onclick = (e) => {
         if (e.target === modal) closeAddScheduleModal();
         if (e.target === listModal) closeListModal();
+        if (e.target === settingsModal) closeSettingsModal();
     };
 
     // 4. Final Initialization
