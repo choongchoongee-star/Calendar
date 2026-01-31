@@ -1,0 +1,26 @@
+{
+  "name": "calendar",
+  "version": "1.0.0",
+  "description": "A simple, responsive, and modern web-based monthly schedule service built with only HTML, CSS, and JavaScript. This project provides a full-month calendar view where users can add and delete schedule items. All data is saved to the browser's localStorage, so your schedules persist after a page refresh.",
+  "main": "script.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/choongchoongee-star/Calendar.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/choongchoongee-star/Calendar/issues"
+  },
+  "homepage": "https://github.com/choongchoongee-star/Calendar#readme",
+  "dependencies": {
+    "@capacitor/cli": "^8.0.2",
+    "@capacitor/core": "^8.0.2",
+    "@capacitor/ios": "^8.0.2"
+  }
+}
