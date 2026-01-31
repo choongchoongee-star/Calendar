@@ -84,6 +84,42 @@ const DataManager = {
         const { error } = await this.client.from('schedules').delete().eq('group_id', groupId);
         if (error) throw error;
     },
+
+    async syncToCloud() {
+        if (!this.client) return;
+        console.log("Syncing calendar to cloud storage...");
+        
+        // 1. Generate ICS content
+        let icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Vibe Calendar//EN\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\nX-PUBLISHED-TTL:PT1H\n";
+        this.schedules.forEach(event => {
+            const start = event.startDate.replace(/-/g, '') + (event.startTime ? 'T' + event.startTime.replace(/:/g, '') + '00' : '');
+            const end = event.endDate.replace(/-/g, '') + (event.endTime ? 'T' + event.endTime.replace(/:/g, '') + '00' : '');
+            let finalEnd = end;
+            if (!event.startTime) {
+                 const d = new Date(event.endDate);
+                 d.setDate(d.getDate() + 1);
+                 finalEnd = d.toISOString().split('T')[0].replace(/-/g, '');
+            }
+            icsContent += "BEGIN:VEVENT\n";
+            icsContent += `UID:${event.id || Math.random()}@vibecalendar\n`;
+            icsContent += `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z\n`;
+            icsContent += `DTSTART;VALUE=${event.startTime ? 'DATE-TIME' : 'DATE'}:${start}\n`;
+            icsContent += `DTEND;VALUE=${event.endTime ? 'DATE-TIME' : 'DATE'}:${finalEnd}\n`;
+            icsContent += `SUMMARY:${event.text}\n`;
+            icsContent += "END:VEVENT\n";
+        });
+        icsContent += "END:VCALENDAR";
+
+        // 2. Upload to Supabase Storage (Public bucket 'calendars')
+        // We use a fixed filename 'my-calendar.ics'. For multiple users, this should be unique.
+        const blob = new Blob([icsContent], { type: 'text/calendar' });
+        const { error } = await this.client.storage
+            .from('calendars')
+            .upload('my-calendar.ics', blob, { upsert: true });
+            
+        if (error) console.error("Cloud sync failed:", error);
+        else console.log("Cloud sync successful.");
+    },
     
     getSchedules() {
         return this.schedules;
@@ -258,6 +294,8 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchSchedules() {
         try {
             schedules = await DataManager.fetchSchedules();
+            // Automatically sync on load to ensure cloud is up to date
+            DataManager.syncToCloud();
         } catch (err) {
             console.error("Error fetching data:", err);
         } finally {
@@ -551,6 +589,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             await fetchSchedules();
+            await DataManager.syncToCloud();
             closeAddScheduleModal();
         } catch (e) {
             alert("저장 중 오류 발생: " + e.message);
@@ -562,6 +601,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 await DataManager.deleteSchedule(id);
                 await fetchSchedules();
+                await DataManager.syncToCloud();
             } catch (e) {
                 console.error("Delete failed:", e);
                 // If pure local mode, maybe just remove from local array? 
@@ -650,6 +690,12 @@ document.addEventListener('DOMContentLoaded', () => {
     settingsBtn.onclick = openSettingsModal;
     closeSettingsBtn.onclick = closeSettingsModal;
     generateLinkBtn.onclick = generateICS;
+    
+    document.getElementById('live-link-url').onclick = function() {
+        this.select();
+        document.execCommand('copy');
+        alert("링크가 클립보드에 복사되었습니다!");
+    };
 
     prevMonthButton.onclick = () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); };
     nextMonthButton.onclick = () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); };
