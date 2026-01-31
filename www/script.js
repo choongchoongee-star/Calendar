@@ -568,6 +568,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Event Listeners ---
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    function handleSwipe() {
+        if (touchEndX < touchStartX - 50) {
+            // Swipe Left -> Next Month
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            renderCalendar();
+        }
+        if (touchEndX > touchStartX + 50) {
+            // Swipe Right -> Prev Month
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            renderCalendar();
+        }
+    }
+
+    calendarElement.addEventListener('touchstart', e => {
+        touchStartX = e.changedTouches[0].screenX;
+    }, {passive: true});
+
+    calendarElement.addEventListener('touchend', e => {
+        touchEndX = e.changedTouches[0].screenX;
+        handleSwipe();
+    }, {passive: true});
+
     prevMonthButton.onclick = () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); };
     nextMonthButton.onclick = () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); };
     
