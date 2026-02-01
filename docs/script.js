@@ -18,7 +18,11 @@ const DataManager = {
     },
 
     async checkSession() {
-        const { data: { session } } = await this.client.auth.getSession();
+        console.log("Checking session...");
+        const { data: { session }, error } = await this.client.auth.getSession();
+        if (error) console.error("Session check error:", error);
+        if (session) console.log("Session found:", session.user.email);
+        else console.log("No session found.");
         this.session = session;
         return session;
     },
