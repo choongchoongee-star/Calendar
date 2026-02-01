@@ -97,10 +97,31 @@ const DataManager = {
 
     async deleteCalendar(id) {
         if (!this.session) throw new Error("로그인이 필요합니다.");
-        const { error } = await this.client.from('calendars').delete().eq('id', id);
-        if (error) throw error;
         
-        // If current calendar deleted, reset selection
+        // Check ownership first
+        const { data: calendar, error: fetchError } = await this.client
+            .from('calendars')
+            .select('owner_id')
+            .eq('id', id)
+            .single();
+            
+        if (fetchError) throw fetchError;
+
+        if (calendar.owner_id === this.session.user.id) {
+            // I am the owner -> Delete completely
+            const { error } = await this.client.from('calendars').delete().eq('id', id);
+            if (error) throw error;
+        } else {
+            // I am a member -> Leave calendar
+            const { error } = await this.client
+                .from('calendar_members')
+                .delete()
+                .eq('calendar_id', id)
+                .eq('user_id', this.session.user.id);
+            if (error) throw error;
+        }
+        
+        // Reset selection if needed
         if (this.currentCalendarId === id) {
             this.currentCalendarId = null;
         }
@@ -414,34 +435,46 @@ document.addEventListener('DOMContentLoaded', async () => {
                     loadCalendars(); 
                 };
 
-                // Only owner can delete
-                if (cal.owner_id === DataManager.session.user.id) {
-                    const delBtn = document.createElement('button');
-                    delBtn.innerHTML = '&times;';
-                    delBtn.style.background = '#ff6b6b';
-                    delBtn.style.color = 'white';
-                    delBtn.style.border = 'none';
-                    delBtn.style.borderRadius = '50%';
-                    delBtn.style.width = '24px';
-                    delBtn.style.height = '24px';
-                    delBtn.style.marginLeft = '10px';
-                    delBtn.style.cursor = 'pointer';
-                    delBtn.onclick = async (e) => {
-                        e.stopPropagation(); // Prevent selection
-                        if (confirm(`'${cal.title}' 캘린더를 삭제하시겠습니까? \n(모든 일정이 삭제됩니다)`)) {
-                            try {
-                                await DataManager.deleteCalendar(cal.id);
-                                await loadCalendars(); // Refresh
-                            } catch (err) {
-                                alert("삭제 실패: " + err.message);
-                            }
-                        }
-                    };
-                    li.appendChild(span);
-                    li.appendChild(delBtn);
+                // Delete / Leave Button
+                const isOwner = cal.owner_id === DataManager.session.user.id;
+                const delBtn = document.createElement('button');
+                delBtn.innerHTML = isOwner ? '&times;' : 'out'; // X for owner, text/icon for leaver
+                if (!isOwner) {
+                    delBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>';
+                    delBtn.style.background = '#999'; // Grey for leaving
                 } else {
-                    li.appendChild(span);
+                    delBtn.style.background = '#ff6b6b'; // Red for deleting
                 }
+                
+                delBtn.style.color = 'white';
+                delBtn.style.border = 'none';
+                delBtn.style.borderRadius = '50%';
+                delBtn.style.width = '24px';
+                delBtn.style.height = '24px';
+                delBtn.style.marginLeft = '10px';
+                delBtn.style.cursor = 'pointer';
+                delBtn.style.display = 'flex';
+                delBtn.style.justifyContent = 'center';
+                delBtn.style.alignItems = 'center';
+                delBtn.style.padding = '4px';
+
+                delBtn.onclick = async (e) => {
+                    e.stopPropagation(); 
+                    const msg = isOwner 
+                        ? `'${cal.title}' 캘린더를 영구 삭제하시겠습니까? \n(모든 멤버에게서 삭제됩니다)` 
+                        : `'${cal.title}' 공유 캘린더에서 나가시겠습니까? \n(다른 멤버는 계속 사용할 수 있습니다)`;
+                    
+                    if (confirm(msg)) {
+                        try {
+                            await DataManager.deleteCalendar(cal.id);
+                            await loadCalendars(); 
+                        } catch (err) {
+                            alert("작업 실패: " + err.message);
+                        }
+                    }
+                };
+                li.appendChild(span);
+                li.appendChild(delBtn);
 
                 calendarList.appendChild(li);
             });
