@@ -366,6 +366,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             option.textContent = (m + 1);
             monthSelect.appendChild(option);
         }
+        
+        // Set default to current date immediately
+        yearSelect.value = new Date().getFullYear();
+        monthSelect.value = new Date().getMonth();
 
         let currentDate = new Date();
         let currentSelectedDate = null;
