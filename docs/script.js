@@ -28,9 +28,20 @@ const DataManager = {
     },
 
     async signIn(provider) {
+        try {
+            // value: https://choongchoongee-star.github.io/Calendar/
+            const redirectUrl = window.location.origin + window.location.pathname; 
+            
             const { error } = await this.client.auth.signInWithOAuth({
-                provider: provider
+                provider: provider,
+                options: {
+                    redirectTo: redirectUrl
+                }
             });
+            if (error) alert("로그인 오류: " + error.message);
+        } catch (e) {
+            alert("로그인 시스템 오류: " + e.message);
+        }
     },
 
     async signOut() {
