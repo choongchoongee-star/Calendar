@@ -76,12 +76,18 @@ const DataManager = {
     },
 
     async createCalendar(title) {
+        if (!this.session || !this.session.user) throw new Error("로그인이 필요합니다.");
+        console.log("Creating calendar for user:", this.session.user.id);
+        
         const { data, error } = await this.client.from('calendars').insert([{ 
             title: title, 
             owner_id: this.session.user.id 
         }]).select(); // Return the created row
         
-        if (error) throw error;
+        if (error) {
+            console.error("Create calendar error:", error);
+            throw error;
+        }
         
         // Auto-select the new calendar
         if (data && data.length > 0) {
