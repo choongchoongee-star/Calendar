@@ -12,12 +12,19 @@ const DataManager = {
     schedules: [],
 
     init(url, key) {
-        if (typeof window.supabase === 'undefined') return;
+        if (typeof window.supabase === 'undefined') {
+            console.error("Supabase SDK not loaded.");
+            return;
+        }
         this.client = window.supabase.createClient(url, key);
         console.log("Supabase initialized.");
     },
 
     async checkSession() {
+        if (!this.client) {
+            console.error("Supabase client not initialized.");
+            return null;
+        }
         console.log("Checking session...");
         const { data: { session }, error } = await this.client.auth.getSession();
         if (error) console.error("Session check error:", error);
