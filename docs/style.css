@@ -361,6 +361,10 @@ header {
     box-shadow: 0 4px 10px rgba(74, 144, 226, 0.4);
 }
 
+button svg {
+    pointer-events: none;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     body {
