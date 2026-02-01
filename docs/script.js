@@ -29,10 +29,7 @@ const DataManager = {
 
     async signIn(provider) {
             const { error } = await this.client.auth.signInWithOAuth({
-                provider: provider,
-                options: {
-                    redirectTo: 'https://choongchoongee-star.github.io/Calendar/'
-                }
+                provider: provider
             });
     },
 
