@@ -5,10 +5,15 @@ body {
     color: #333;
     margin: 0;
     padding: 20px;
+    padding-top: env(safe-area-inset-top, 20px);
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+    padding-left: env(safe-area-inset-left, 20px);
+    padding-right: env(safe-area-inset-right, 20px);
     display: flex;
     justify-content: center;
     align-items: flex-start;
     min-height: 100vh;
+    overflow-x: hidden;
 }
 
 #app {
@@ -25,6 +30,7 @@ header {
     justify-content: space-between;
     align-items: center;
     padding: 15px 20px;
+    padding-top: max(15px, env(safe-area-inset-top));
     background-color: #4A90E2;
     color: #fff;
     flex-wrap: nowrap; /* Ensure one row */
@@ -36,6 +42,7 @@ header {
     gap: 2px;
     flex-shrink: 0;
 }
+
 
 #date-selectors select {
     font-size: 1.2rem;
@@ -172,7 +179,7 @@ header {
     padding: 0 8px;
     overflow: hidden;
     white-space: nowrap;
-    text-overflow: '.';
+    text-overflow: ellipsis;
     pointer-events: auto; /* Re-enable clicks for events */
     cursor: pointer;
     box-shadow: 0 1px 2px rgba(0,0,0,0.1);
