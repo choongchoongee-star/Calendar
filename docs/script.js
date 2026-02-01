@@ -431,8 +431,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         function updateLiveLink() {
             const linkInput = document.getElementById('live-link-url');
+            if (!linkInput) return;
+            
             if (DataManager.currentCalendarId) {
                 linkInput.value = `https://rztrkeejliampmzcqbmx.supabase.co/storage/v1/object/public/calendars/calendar-${DataManager.currentCalendarId}.ics`;
+            } else {
+                linkInput.value = "캘린더를 선택해주세요.";
             }
         }
         
