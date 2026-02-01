@@ -424,6 +424,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 const span = document.createElement('span');
                 span.textContent = cal.title + (cal.id === DataManager.currentCalendarId ? ' (V)' : '');
+                span.style.flex = '1'; // Take up all available space
+                span.style.overflow = 'hidden';
+                span.style.textOverflow = 'ellipsis';
+                span.style.whiteSpace = 'nowrap';
+                
                 if (cal.id === DataManager.currentCalendarId) span.style.fontWeight = 'bold';
                 
                 li.onclick = async () => {
