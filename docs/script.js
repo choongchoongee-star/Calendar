@@ -51,13 +51,18 @@ const DataManager = {
 
     async fetchCalendars() {
         if (!this.session) return [];
-        // Fetch calendars owned by user OR shared with user
+        console.log("Fetching calendars...");
         const { data, error } = await this.client.from('calendars').select('*');
-        if (error) throw error;
+        if (error) {
+            console.error("Error fetching calendars:", error);
+            throw error;
+        }
+        console.log("Calendars fetched:", data);
         this.calendars = data;
         
         // If no calendar exists, create a default one
         if (this.calendars.length === 0) {
+            console.log("No calendars found. Creating default...");
             await this.createCalendar("내 캘린더");
             return await this.fetchCalendars();
         }
