@@ -1,5 +1,5 @@
 {
   "appId": "com.vibe.calendar",
   "appName": "Vibe Calendar",
-  "webDir": "www"
+  "webDir": "docs"
 }
