@@ -71,11 +71,17 @@ const DataManager = {
     },
 
     async createCalendar(title) {
-        const { error } = await this.client.from('calendars').insert([{ 
+        const { data, error } = await this.client.from('calendars').insert([{ 
             title: title, 
             owner_id: this.session.user.id 
-        }]);
+        }]).select(); // Return the created row
+        
         if (error) throw error;
+        
+        // Auto-select the new calendar
+        if (data && data.length > 0) {
+            this.currentCalendarId = data[0].id;
+        }
     },
 
     async shareCalendar(email) {
@@ -395,8 +401,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         createCalendarBtn.onclick = async () => {
             const name = prompt("새 캘린더 이름:");
             if (name) {
-                await DataManager.createCalendar(name);
-                loadCalendars();
+                try {
+                    await DataManager.createCalendar(name);
+                    alert("캘린더가 생성되었습니다!");
+                    await loadCalendars(); // Refresh list
+                } catch (e) {
+                    alert("캘린더 생성 실패: " + e.message);
+                }
             }
         };
 
