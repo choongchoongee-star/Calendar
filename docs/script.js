@@ -95,6 +95,17 @@ const DataManager = {
         }
     },
 
+    async deleteCalendar(id) {
+        if (!this.session) throw new Error("로그인이 필요합니다.");
+        const { error } = await this.client.from('calendars').delete().eq('id', id);
+        if (error) throw error;
+        
+        // If current calendar deleted, reset selection
+        if (this.currentCalendarId === id) {
+            this.currentCalendarId = null;
+        }
+    },
+
     async shareCalendar(email) {
         // 1. Find user by email (using profiles table)
         const { data: profiles, error: pError } = await this.client
@@ -386,22 +397,59 @@ document.addEventListener('DOMContentLoaded', async () => {
                 li.style.padding = '10px';
                 li.style.cursor = 'pointer';
                 li.style.borderBottom = '1px solid #eee';
-                li.textContent = cal.title + (cal.id === DataManager.currentCalendarId ? ' (V)' : '');
-                if (cal.id === DataManager.currentCalendarId) li.style.fontWeight = 'bold';
+                li.style.display = 'flex';
+                li.style.justifyContent = 'space-between';
+                li.style.alignItems = 'center';
+                
+                const span = document.createElement('span');
+                span.textContent = cal.title + (cal.id === DataManager.currentCalendarId ? ' (V)' : '');
+                if (cal.id === DataManager.currentCalendarId) span.style.fontWeight = 'bold';
                 
                 li.onclick = async () => {
                     DataManager.currentCalendarId = cal.id;
-                    await DataManager.fetchSchedules(); // Fetch new data
-                    updateLiveLink(); // Update the link for iPhone
+                    await DataManager.fetchSchedules(); 
+                    updateLiveLink(); 
                     drawer.style.display = 'none';
                     drawerOverlay.style.display = 'none';
-                    loadCalendars(); // Refresh list to show checkmark
+                    loadCalendars(); 
                 };
+
+                // Only owner can delete
+                if (cal.owner_id === DataManager.session.user.id) {
+                    const delBtn = document.createElement('button');
+                    delBtn.innerHTML = '&times;';
+                    delBtn.style.background = '#ff6b6b';
+                    delBtn.style.color = 'white';
+                    delBtn.style.border = 'none';
+                    delBtn.style.borderRadius = '50%';
+                    delBtn.style.width = '24px';
+                    delBtn.style.height = '24px';
+                    delBtn.style.marginLeft = '10px';
+                    delBtn.style.cursor = 'pointer';
+                    delBtn.onclick = async (e) => {
+                        e.stopPropagation(); // Prevent selection
+                        if (confirm(`'${cal.title}' 캘린더를 삭제하시겠습니까? \n(모든 일정이 삭제됩니다)`)) {
+                            try {
+                                await DataManager.deleteCalendar(cal.id);
+                                await loadCalendars(); // Refresh
+                            } catch (err) {
+                                alert("삭제 실패: " + err.message);
+                            }
+                        }
+                    };
+                    li.appendChild(span);
+                    li.appendChild(delBtn);
+                } else {
+                    li.appendChild(span);
+                }
+
                 calendarList.appendChild(li);
             });
             updateLiveLink();
-            await DataManager.fetchSchedules(); // Load initial data
-            renderCalendar(); // Explicitly render
+            if (DataManager.currentCalendarId) {
+                await DataManager.fetchSchedules();
+                renderCalendar(); 
+            }
         }
         
         menuBtn.onclick = () => {
