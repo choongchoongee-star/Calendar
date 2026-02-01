@@ -316,6 +316,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const settingsBtn = document.getElementById('settings-btn');
         const settingsModal = document.getElementById('settings-modal');
         const closeSettingsBtn = document.querySelector('.settings-close');
+        const settingsLogoutBtn = document.getElementById('settings-logout-btn');
         const shareBtn = document.getElementById('share-btn');
         const shareEmailInput = document.getElementById('share-email');
 
@@ -384,7 +385,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 calendarList.appendChild(li);
             });
             updateLiveLink();
-            DataManager.fetchSchedules(); // Load initial data
+            await DataManager.fetchSchedules(); // Load initial data
+            renderCalendar(); // Explicitly render
         }
         
         menuBtn.onclick = () => {
@@ -412,6 +414,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
 
         logoutBtn.onclick = () => DataManager.signOut();
+        settingsLogoutBtn.onclick = () => DataManager.signOut();
 
         // --- Sharing Logic ---
         shareBtn.onclick = async () => {
