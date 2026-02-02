@@ -35,6 +35,10 @@ const DataManager = {
     },
 
     async signIn(provider) {
+        if (!this.client) {
+            alert("로그인 서비스를 사용할 수 없습니다. (Supabase 초기화 실패)");
+            return;
+        }
         try {
             // value: https://choongchoongee-star.github.io/Calendar/
             const redirectUrl = window.location.origin + window.location.pathname; 
