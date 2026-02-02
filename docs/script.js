@@ -337,6 +337,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const loginAppleBtn = document.getElementById('login-apple-btn');
     const loginGoogleBtn = document.getElementById('login-google-btn');
     const appContainer = document.getElementById('app');
+
+    // Login Handler Wrapper
+    const handleLogin = (provider) => {
+        console.log(`${provider} login clicked`);
+        DataManager.signIn(provider);
+    };
+
+    // Attach Listeners Immediately (Do not wait for async session check)
+    loginAppleBtn.addEventListener('click', () => handleLogin('apple'));
+    loginGoogleBtn.addEventListener('click', () => handleLogin('google'));
     
     // Check Session
     const session = await DataManager.checkSession();
@@ -348,16 +358,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         appContainer.style.filter = 'none';
         initializeCalendar();
     }
-
-    // Login Handlers
-    loginAppleBtn.addEventListener('click', () => {
-        console.log("Apple login clicked");
-        DataManager.signIn('apple');
-    });
-    loginGoogleBtn.addEventListener('click', () => {
-        console.log("Google login clicked");
-        DataManager.signIn('google');
-    });
 
     function initializeCalendar() {
         const yearSelect = document.getElementById('year-select');
