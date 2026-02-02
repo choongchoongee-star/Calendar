@@ -261,6 +261,39 @@ header {
 
 .modal-content button { width: 100%; padding: 10px; background-color: #4A90E2; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
 
+/* Login Buttons */
+.login-btn {
+    padding: 12px;
+    border-radius: 6px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.1s;
+}
+
+.login-btn:active {
+    transform: scale(0.97);
+    opacity: 0.8;
+}
+
+.login-apple {
+    background-color: #000;
+    color: #fff;
+    border: 1px solid #000;
+    margin-bottom: 10px;
+}
+
+.login-google {
+    background-color: #fff;
+    color: #333;
+    border: 1px solid #ccc;
+}
+
+
 /* Color Palette */
 .color-palette {
     display: flex;
