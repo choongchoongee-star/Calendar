@@ -40,8 +40,10 @@ const DataManager = {
             return;
         }
         try {
-            // value: https://choongchoongee-star.github.io/Calendar/
-            const redirectUrl = window.location.origin + window.location.pathname; 
+            console.log("Signing in with", provider);
+            // Clean URL: remove query params, hash, and specifically 'index.html' to match typical allowlists
+            const redirectUrl = window.location.href.split('?')[0].split('#')[0].replace(/\/index\.html$/, '').replace(/\/$/, '');
+            console.log("Redirect URL:", redirectUrl);
             
             const { error } = await this.client.auth.signInWithOAuth({
                 provider: provider,
@@ -348,8 +350,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Login Handlers
-    loginAppleBtn.onclick = () => DataManager.signIn('apple');
-    loginGoogleBtn.onclick = () => DataManager.signIn('google');
+    loginAppleBtn.addEventListener('click', () => {
+        console.log("Apple login clicked");
+        DataManager.signIn('apple');
+    });
+    loginGoogleBtn.addEventListener('click', () => {
+        console.log("Google login clicked");
+        DataManager.signIn('google');
+    });
 
     function initializeCalendar() {
         const yearSelect = document.getElementById('year-select');
