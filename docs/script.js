@@ -39,9 +39,43 @@ const DataManager = {
             alert("로그인 서비스를 사용할 수 없습니다. (Supabase 초기화 실패)");
             return;
         }
+
         try {
             console.log("Signing in with", provider);
-            // Clean URL: remove query params, hash, and specifically 'index.html' to match typical allowlists
+
+            // 1. Native Apple Sign-In (iOS)
+            if (provider === 'apple' && 
+                window.Capacitor && 
+                window.Capacitor.isNativePlatform() && 
+                window.Capacitor.Plugins.SignInWithApple) {
+                
+                console.log("Attempting native Apple Sign-In...");
+                try {
+                    const result = await window.Capacitor.Plugins.SignInWithApple.authorize({
+                        clientId: 'com.vibe.calendar', // Ensure this matches your App ID
+                        scopes: 'email name',
+                        redirectURI: 'https://rztrkeejliampmzcqbmx.supabase.co/auth/v1/callback' // Supabase Callback URL
+                    });
+
+                    if (result.response && result.response.identityToken) {
+                        const { data, error } = await this.client.auth.signInWithIdToken({
+                            provider: 'apple',
+                            token: result.response.identityToken,
+                            nonce: 'NONCE', // Optional: if you used a nonce in authorize
+                        });
+                        if (error) throw error;
+                        console.log("Native Apple Sign-In successful");
+                        window.location.reload(); // Refresh to update UI
+                        return;
+                    }
+                } catch (nativeError) {
+                    console.warn("Native Apple Sign-In failed, falling back to web:", nativeError);
+                    // Fallthrough to web login if native fails (or user cancels)
+                }
+            }
+
+            // 2. Web OAuth (Fallback & Default)
+            // Clean URL: remove query params, hash, and specifically 'index.html'
             const redirectUrl = window.location.href.split('?')[0].split('#')[0].replace(/\/index\.html$/, '').replace(/\/$/, '');
             console.log("Redirect URL:", redirectUrl);
             
