@@ -229,6 +229,16 @@ const DataManager = {
         return { status: 'success' };
     },
 
+    async sendInvite(email) {
+        // Send a magic link (OTP) to the user which acts as an invitation/signup
+        console.log("Sending invitation to:", email);
+        const { error } = await this.client.auth.signInWithOtp({
+            email: email,
+            options: { shouldCreateUser: true }
+        });
+        if (error) throw error;
+    },
+
     async fetchSchedules() {
         if (!this.client || !this.currentCalendarId) return [];
         console.log(`Fetching schedules for calendar: ${this.currentCalendarId}`);
@@ -676,11 +686,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     alert(`${email}님을 초대했습니다!`);
                     shareEmailInput.value = '';
                 } else if (result.status === 'not_found') {
-                    if (confirm("사용자를 찾을 수 없습니다. 초대 메일을 보내시겠습니까?")) {
-                        const subject = encodeURIComponent("캘린더 초대");
-                        const link = window.location.origin; 
-                        const body = encodeURIComponent(`안녕하세요,\n\n캘린더를 함께 사용하고 싶습니다.\n아래 링크에서 가입해주세요.\n\n${link}\n\n가입 후 다시 알려주시면 캘린더에 추가하겠습니다.`);
-                        window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+                    if (confirm("사용자를 찾을 수 없습니다. 자동으로 초대 메일(로그인 링크)을 보내시겠습니까?")) {
+                        try {
+                            await DataManager.sendInvite(email);
+                            alert("초대 메일이 전송되었습니다!\n상대방이 해당 링크로 로그인하면 다시 캘린더에 추가해주세요.");
+                        } catch (err) {
+                            alert("초대 실패: " + err.message);
+                        }
                     }
                 }
             } catch (e) {
