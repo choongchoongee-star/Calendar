@@ -411,7 +411,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     loginAppleBtn.addEventListener('click', () => handleLogin('apple'));
     loginGoogleBtn.addEventListener('click', () => handleLogin('google'));
     
-    // Check Session
+    // Subscribe to Auth Changes (Required for Mobile Web Redirects)
+    DataManager.client.auth.onAuthStateChange((event, session) => {
+        console.log("Auth State Change:", event);
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            if (session) {
+                DataManager.session = session;
+                loginModal.style.display = 'none';
+                appContainer.style.filter = 'none';
+                // Safe way to init if it hasn't run yet
+                if (window.initializeCalendar) {
+                    // Check if calendar is already populated to avoid duplicates? 
+                    // initializeCalendar clears existing elements (calendarElement.innerHTML = '') so it is safe.
+                    window.initializeCalendar();
+                }
+            }
+        } else if (event === 'SIGNED_OUT') {
+            loginModal.style.display = 'flex';
+            appContainer.style.filter = 'blur(5px)';
+            DataManager.session = null;
+        }
+    });
+
+    // Check Session (Initial Load)
     const session = await DataManager.checkSession();
     if (!session) {
         loginModal.style.display = 'flex';
