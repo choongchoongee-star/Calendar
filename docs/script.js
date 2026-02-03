@@ -398,6 +398,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 1. Initialize Supabase
     DataManager.init(SUPABASE_URL, SUPABASE_KEY);
 
+    // FIX: Manually handle OAuth redirect hash if Supabase auto-detect fails on mobile
+    if (window.location.hash && window.location.hash.includes('access_token')) {
+        console.log("Manual Hash Detection: Attempting to recover session...");
+        const params = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        
+        if (accessToken && refreshToken) {
+            const { data, error } = await DataManager.client.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken
+            });
+            if (!error && data.session) {
+                console.log("Manual Session Recovery Successful");
+                // Do not clear hash immediately if you want Supabase to also see it, 
+                // but usually setSession is enough. We can clean it.
+                window.location.hash = ''; 
+            } else {
+                console.warn("Manual Session Recovery Failed:", error);
+            }
+        }
+    }
+
     // 2. Select Elements
     const loginModal = document.getElementById('login-modal');
     const loginAppleBtn = document.getElementById('login-apple-btn');
