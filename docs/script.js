@@ -88,7 +88,12 @@ const DataManager = {
                         });
                         if (error) throw error;
                         console.log("Native Apple Sign-In successful");
-                        window.location.reload(); // Refresh to update UI
+                        
+                        // Update session and UI manually to prevent reload race conditions
+                        this.session = data.session;
+                        document.getElementById('login-modal').style.display = 'none';
+                        document.getElementById('app').style.filter = 'none';
+                        if (window.initializeCalendar) window.initializeCalendar();
                         return;
                     }
                 } catch (nativeError) {
@@ -418,6 +423,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function initializeCalendar() {
+        window.initializeCalendar = initializeCalendar; // Expose for DataManager
         const yearSelect = document.getElementById('year-select');
         const monthSelect = document.getElementById('month-select');
         const calendarElement = document.getElementById('calendar');
