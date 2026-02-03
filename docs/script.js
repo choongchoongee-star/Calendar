@@ -103,8 +103,11 @@ const DataManager = {
             }
 
             // 2. Web OAuth (Fallback & Default)
-            // Clean URL: remove query params, hash, and specifically 'index.html'
-            const redirectUrl = window.location.href.split('?')[0].split('#')[0].replace(/\/index\.html$/, '').replace(/\/$/, '');
+            // Ensure trailing slash for GitHub Pages to prevent 301 redirects dropping the hash
+            let redirectUrl = window.location.href.split('?')[0].split('#')[0].replace(/\/index\.html$/, '');
+            if (!redirectUrl.endsWith('/')) {
+                redirectUrl += '/';
+            }
             console.log("Redirect URL:", redirectUrl);
             
             const { error } = await this.client.auth.signInWithOAuth({
