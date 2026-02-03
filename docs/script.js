@@ -3,6 +3,25 @@
 const SUPABASE_URL = 'https://rztrkeejliampmzcqbmx.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6dHJrZWVqbGlhbXBtemNxYm14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDE4MTksImV4cCI6MjA4NDY3NzgxOX0.ind5OQoPfWuAd_StssdeIDlrKxotW3XPhGOV63NqUWY';
 
+// Crypto helpers for Apple Sign-In
+const generateNonce = (length = 16) => {
+    const charset = '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    let result = '';
+    const randomValues = new Uint8Array(length);
+    window.crypto.getRandomValues(randomValues);
+    randomValues.forEach(v => result += charset[v % charset.length]);
+    return result;
+};
+
+const sha256 = async (plain) => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(plain);
+    const hash = await window.crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hash))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+};
+
 // Data Manager
 const DataManager = {
     client: null,
@@ -51,17 +70,21 @@ const DataManager = {
                 
                 console.log("Attempting native Apple Sign-In...");
                 try {
+                    const rawNonce = generateNonce();
+                    const hashedNonce = await sha256(rawNonce);
+
                     const result = await window.Capacitor.Plugins.SignInWithApple.authorize({
-                        clientId: 'com.vibe.calendar', // Ensure this matches your App ID
+                        clientId: 'com.dangmoo.calendar', // Ensure this matches your App ID
                         scopes: 'email name',
-                        redirectURI: 'https://rztrkeejliampmzcqbmx.supabase.co/auth/v1/callback' // Supabase Callback URL
+                        redirectURI: 'https://rztrkeejliampmzcqbmx.supabase.co/auth/v1/callback', // Supabase Callback URL
+                        nonce: hashedNonce
                     });
 
                     if (result.response && result.response.identityToken) {
                         const { data, error } = await this.client.auth.signInWithIdToken({
                             provider: 'apple',
                             token: result.response.identityToken,
-                            nonce: 'NONCE', // Optional: if you used a nonce in authorize
+                            nonce: rawNonce, 
                         });
                         if (error) throw error;
                         console.log("Native Apple Sign-In successful");
@@ -182,7 +205,7 @@ const DataManager = {
             .eq('email', email)
             .single();
         
-        if (pError || !profiles) throw new Error("사용자를 찾을 수 없습니다. 해당 이메일로 가입된 사용자가 있는지 확인하세요.");
+        if (pError || !profiles) return { status: 'not_found' };
 
         // 2. Add to calendar_members
         const { error } = await this.client.from('calendar_members').insert([{
@@ -195,6 +218,7 @@ const DataManager = {
             if (error.code === '23505') throw new Error("이미 공유된 사용자입니다.");
             throw error;
         }
+        return { status: 'success' };
     },
 
     async fetchSchedules() {
@@ -262,7 +286,7 @@ const DataManager = {
         
         console.log("Syncing calendar to cloud storage...", fileName);
         
-        let icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Vibe Calendar//EN\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\nX-PUBLISHED-TTL:PT1H\n";
+        let icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Calendar//EN\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\nX-PUBLISHED-TTL:PT1H\n";
         this.schedules.forEach(event => {
             const start = event.startDate.replace(/-/g, '') + (event.startTime ? 'T' + event.startTime.replace(/:/g, '') + '00' : '');
             const end = event.endDate.replace(/-/g, '') + (event.endTime ? 'T' + event.endTime.replace(/:/g, '') + '00' : '');
@@ -575,9 +599,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             const email = shareEmailInput.value;
             if (!email) return alert("이메일을 입력하세요.");
             try {
-                await DataManager.shareCalendar(email);
-                alert(`${email}님을 초대했습니다!`);
-                shareEmailInput.value = '';
+                const result = await DataManager.shareCalendar(email);
+                if (result.status === 'success') {
+                    alert(`${email}님을 초대했습니다!`);
+                    shareEmailInput.value = '';
+                } else if (result.status === 'not_found') {
+                    if (confirm("사용자를 찾을 수 없습니다. 초대 메일을 보내시겠습니까?")) {
+                        const subject = encodeURIComponent("캘린더 초대");
+                        const link = window.location.origin; 
+                        const body = encodeURIComponent(`안녕하세요,\n\n캘린더를 함께 사용하고 싶습니다.\n아래 링크에서 가입해주세요.\n\n${link}\n\n가입 후 다시 알려주시면 캘린더에 추가하겠습니다.`);
+                        window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+                    }
+                }
             } catch (e) {
                 alert(e.message);
             }
