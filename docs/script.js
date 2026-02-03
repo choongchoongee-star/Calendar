@@ -435,13 +435,31 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Check Session (Initial Load)
     const session = await DataManager.checkSession();
-    if (!session) {
-        loginModal.style.display = 'flex';
-        appContainer.style.filter = 'blur(5px)';
-    } else {
+    
+    // Detect if we are in an OAuth redirect (Hash contains access_token)
+    // This prevents showing the login modal while Supabase is still processing the URL
+    const isRedirecting = window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('refresh_token'));
+
+    if (session) {
         loginModal.style.display = 'none';
         appContainer.style.filter = 'none';
         initializeCalendar();
+    } else if (isRedirecting) {
+        console.log("Detected redirect hash, waiting for auth processing...");
+        // Do NOT show modal. Wait for onAuthStateChange to fire.
+        loginModal.style.display = 'none';
+        
+        // Fallback: If auth doesn't resolve in 10 seconds, show login
+        setTimeout(() => {
+            if (!DataManager.session) {
+                console.warn("Auth timeout.");
+                loginModal.style.display = 'flex';
+                appContainer.style.filter = 'blur(5px)';
+            }
+        }, 10000);
+    } else {
+        loginModal.style.display = 'flex';
+        appContainer.style.filter = 'blur(5px)';
     }
 
     function initializeCalendar() {
