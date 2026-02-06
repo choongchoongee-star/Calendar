@@ -74,10 +74,21 @@ const DataManager = {
 
     async signIn(provider) {
         if (provider === 'guest') {
+            console.log("Guest login initiated");
             await this.enableGuestMode();
             document.getElementById('login-modal').style.display = 'none';
             document.getElementById('app').style.filter = 'none';
-            if (window.initializeCalendar) window.initializeCalendar();
+            if (window.initializeCalendar) {
+                console.log("Calling initializeCalendar from Guest login");
+                try {
+                    window.initializeCalendar();
+                    console.log("initializeCalendar returned");
+                } catch (err) {
+                    console.error("Error in initializeCalendar:", err);
+                }
+            } else {
+                console.error("window.initializeCalendar is not defined");
+            }
             return;
         }
 
@@ -655,6 +666,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function initializeCalendar() {
+        console.log("initializeCalendar started");
         window.initializeCalendar = initializeCalendar; // Expose for DataManager
         const yearSelect = document.getElementById('year-select');
         const monthSelect = document.getElementById('month-select');
