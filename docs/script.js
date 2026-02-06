@@ -334,7 +334,7 @@ const DataManager = {
         return { status: 'success' };
     },
 
-    async sendInvite(email) {
+    async sendInvite(email, calendarId) {
         if (this.isGuest) return;
         console.log("Sending invitation to:", email);
         
@@ -342,6 +342,10 @@ const DataManager = {
         // Ensure standard URL format
         if (!redirectUrl.endsWith('/') && !redirectUrl.endsWith('.html')) {
              redirectUrl += '/';
+        }
+        
+        if (calendarId) {
+            redirectUrl += `?invite_calendar_id=${calendarId}`;
         }
 
         const { error } = await this.client.auth.signInWithOtp({
@@ -351,6 +355,29 @@ const DataManager = {
                 emailRedirectTo: redirectUrl
             }
         });
+        if (error) throw error;
+    },
+
+    async joinCalendar(calendarId) {
+        if (!this.session || !this.session.user) throw new Error("로그인이 필요합니다.");
+        
+        // 1. Check if already a member
+        const { data: existing, error: checkError } = await this.client
+            .from('calendar_members')
+            .select('id')
+            .eq('calendar_id', calendarId)
+            .eq('user_id', this.session.user.id)
+            .single();
+            
+        if (existing) return; // Already joined
+
+        // 2. Insert into calendar_members
+        const { error } = await this.client.from('calendar_members').insert([{
+            calendar_id: calendarId,
+            user_id: this.session.user.id,
+            role: 'editor'
+        }]);
+        
         if (error) throw error;
     },
 
@@ -625,8 +652,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     loginGoogleBtn.addEventListener('click', () => handleLogin('google'));
     loginGuestBtn.addEventListener('click', () => handleLogin('guest'));
     
+    // Check for pending invite
+    async function checkInvite() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const inviteCalendarId = urlParams.get('invite_calendar_id');
+        
+        if (inviteCalendarId && DataManager.session) {
+             // Clean URL
+             const newUrl = window.location.href.split('?')[0];
+             window.history.replaceState({}, document.title, newUrl);
+             
+             if (confirm("초대받은 캘린더에 참여하시겠습니까?")) {
+                 try {
+                     await DataManager.joinCalendar(inviteCalendarId);
+                     alert("캘린더에 참여했습니다!");
+                     window.location.reload(); 
+                 } catch (e) {
+                     alert("참여 실패: " + e.message);
+                 }
+             }
+        }
+    }
+
     // Subscribe to Auth Changes (Required for Mobile Web Redirects)
-    DataManager.client.auth.onAuthStateChange((event, session) => {
+    DataManager.client.auth.onAuthStateChange(async (event, session) => {
         console.log("Auth State Change:", event);
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
             if (session) {
@@ -635,10 +684,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 appContainer.style.filter = 'none';
                 // Safe way to init if it hasn't run yet
                 if (window.initializeCalendar) {
-                    // Check if calendar is already populated to avoid duplicates? 
-                    // initializeCalendar clears existing elements (calendarElement.innerHTML = '') so it is safe.
                     window.initializeCalendar();
                 }
+                await checkInvite();
             }
         } else if (event === 'SIGNED_OUT') {
             loginModal.style.display = 'flex';
@@ -658,6 +706,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         loginModal.style.display = 'none';
         appContainer.style.filter = 'none';
         initializeCalendar();
+        checkInvite();
     } else if (isRedirecting) {
         console.log("Detected redirect hash, waiting for auth processing...");
         // Do NOT show modal. Wait for onAuthStateChange to fire.
@@ -897,24 +946,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             try {
-                const result = await DataManager.shareCalendar(email);
-                if (result.status === 'success') {
-                    // Also send email for re-invitation or existing users
-                    await DataManager.sendInvite(email);
-                    alert(`${email}님을 캘린더에 추가하고 초대 메일을 보냈습니다.`);
+                if (confirm(`${email}님에게 초대 메일을 보내시겠습니까?\n(상대방이 메일의 링크를 통해 접속하면 캘린더에 추가됩니다)`)) {
+                    await DataManager.sendInvite(email, DataManager.currentCalendarId);
+                    alert("초대 메일이 전송되었습니다!\n상대방이 해당 링크로 로그인하면 캘린더에 멤버로 추가됩니다.");
                     shareEmailInput.value = '';
-                } else if (result.status === 'not_found') {
-                    if (confirm("사용자를 찾을 수 없습니다. 자동으로 초대 메일(로그인 링크)을 보내시겠습니까?")) {
-                        try {
-                            await DataManager.sendInvite(email);
-                            alert("초대 메일이 전송되었습니다!\n상대방이 해당 링크로 로그인하면 다시 캘린더에 추가해주세요.");
-                        } catch (err) {
-                            alert("초대 실패: " + err.message);
-                        }
-                    }
                 }
             } catch (e) {
-                alert(e.message);
+                alert("초대 실패: " + e.message);
             }
         };
 
