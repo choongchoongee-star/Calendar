@@ -765,6 +765,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const closeSettingsBtn = document.querySelector('.settings-close');
         const settingsLogoutBtn = document.getElementById('settings-logout-btn');
         const shareBtn = document.getElementById('share-btn');
+        const shareLinkBtn = document.getElementById('share-link-btn');
         const shareEmailInput = document.getElementById('share-email');
 
         // Modal Elements
@@ -971,6 +972,38 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             } catch (e) {
                 alert("초대 실패: " + e.message);
+            }
+        };
+
+        shareLinkBtn.onclick = async () => {
+            if (DataManager.isGuest) {
+                return alert("게스트 모드에서는 공유할 수 없습니다.");
+            }
+            
+            const baseUrl = window.location.href.split('?')[0].split('#')[0];
+            // Ensure standard URL format
+            const cleanBaseUrl = (baseUrl.endsWith('/') || baseUrl.endsWith('.html')) ? baseUrl : baseUrl + '/';
+            const shareUrl = `${cleanBaseUrl}?invite_calendar_id=${DataManager.currentCalendarId}`;
+            
+            const shareData = {
+                title: 'Calendar 초대',
+                text: '공유 캘린더에 초대합니다. 링크를 클릭하여 참여하세요.',
+                url: shareUrl
+            };
+
+            if (navigator.share) {
+                try {
+                    await navigator.share(shareData);
+                } catch (err) {
+                    console.warn("Share failed:", err);
+                }
+            } else {
+                try {
+                    await navigator.clipboard.writeText(shareUrl);
+                    alert("초대 링크가 복사되었습니다!\n원하는 곳에 붙여넣어 공유하세요.");
+                } catch (err) {
+                    prompt("이 링크를 복사해서 공유하세요:", shareUrl);
+                }
             }
         };
 
