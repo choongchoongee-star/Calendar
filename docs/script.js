@@ -336,11 +336,20 @@ const DataManager = {
 
     async sendInvite(email) {
         if (this.isGuest) return;
-        // Send a magic link (OTP) to the user which acts as an invitation/signup
         console.log("Sending invitation to:", email);
+        
+        let redirectUrl = window.location.href.split('?')[0].split('#')[0];
+        // Ensure standard URL format
+        if (!redirectUrl.endsWith('/') && !redirectUrl.endsWith('.html')) {
+             redirectUrl += '/';
+        }
+
         const { error } = await this.client.auth.signInWithOtp({
             email: email,
-            options: { shouldCreateUser: true }
+            options: { 
+                shouldCreateUser: true,
+                emailRedirectTo: redirectUrl
+            }
         });
         if (error) throw error;
     },
@@ -880,7 +889,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // --- Sharing Logic ---
         shareBtn.onclick = async () => {
-            const email = shareEmailInput.value;
+            const email = shareEmailInput.value.trim();
             if (!email) return alert("이메일을 입력하세요.");
             try {
                 const result = await DataManager.shareCalendar(email);
@@ -891,7 +900,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (confirm("사용자를 찾을 수 없습니다. 자동으로 초대 메일(로그인 링크)을 보내시겠습니까?")) {
                         try {
                             await DataManager.sendInvite(email);
-                            alert("초대 메일이 전송되었습니다!\n'Magic Link' 또는 'Sign in' 제목의 이메일을 확인해주세요 (스팸함 포함).\n상대방이 해당 링크로 로그인하면 다시 캘린더에 추가해주세요.");
+                            alert("초대 메일 발송 요청을 완료했습니다!\n\n⚠️ 주의: 무료 버전 사용 시 발송 제한이 있을 수 있습니다.\n\n메일함(스팸 포함)을 확인해주시고, 메일이 오지 않는다면 잠시 후 다시 시도해주세요.");
                         } catch (err) {
                             alert("초대 실패: " + err.message);
                         }
