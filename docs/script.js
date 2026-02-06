@@ -84,9 +84,11 @@ const DataManager = {
                     window.initializeCalendar();
                     console.log("initializeCalendar returned");
                 } catch (err) {
+                    alert("Error executing initializeCalendar: " + err.message);
                     console.error("Error in initializeCalendar:", err);
                 }
             } else {
+                alert("Critical: window.initializeCalendar is not defined!");
                 console.error("window.initializeCalendar is not defined");
             }
             return;
@@ -666,6 +668,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function initializeCalendar() {
+        try {
         console.log("initializeCalendar started");
         window.initializeCalendar = initializeCalendar; // Expose for DataManager
         const yearSelect = document.getElementById('year-select');
@@ -1104,6 +1107,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (e.target === settingsModal) settingsModal.style.display = 'none';
         };
 
+        console.log("Calling loadCalendars...");
         loadCalendars(); // Start the chain
+        } catch (e) {
+            alert("Error in initializeCalendar: " + e.message);
+            console.error(e);
+        }
     }
 });
