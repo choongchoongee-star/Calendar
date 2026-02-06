@@ -556,6 +556,9 @@ const CalendarUtils = {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Expose initializeCalendar immediately so it's available for Guest login
+    window.initializeCalendar = initializeCalendar;
+
     // 1. Initialize Supabase
     DataManager.init(SUPABASE_URL, SUPABASE_KEY);
 
