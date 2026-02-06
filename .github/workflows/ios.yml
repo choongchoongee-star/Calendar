@@ -57,13 +57,13 @@ jobs:
       - name: Build and Archive (IPA)
         run: |
           cd ios
+          # The PROVISIONING_PROFILE_SPECIFIER should match the name of the profile you created in Apple Portal
           xcodebuild -workspace App/App.xcworkspace \
             -scheme App \
             -sdk iphoneos \
             -configuration Release \
             -archivePath $PWD/build/App.xcarchive \
             archive \
-            PROVISIONING_PROFILE_SPECIFIER="" \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             CODE_SIGN_STYLE="Manual"
 
@@ -73,7 +73,15 @@ jobs:
             -exportOptionsPlist App/App/exportOptions.plist \
             -exportPath $PWD/build
 
-      - name: Upload Artifact
+      - name: Upload to App Store Connect
+        uses: apple-actions/upload-testflight-build@v1
+        with:
+          app-path: ios/build/App.ipa
+          issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          api-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          api-key-content: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+
+      - name: Upload Artifact to GitHub
         uses: actions/upload-artifact@v4
         with:
           name: ios-app
