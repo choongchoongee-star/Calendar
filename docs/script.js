@@ -666,7 +666,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                  try {
                      await DataManager.joinCalendar(inviteCalendarId);
                      alert("캘린더에 참여했습니다!");
-                     window.location.reload(); 
+                     if (window.refreshCalendarApp) {
+                         await window.refreshCalendarApp(inviteCalendarId);
+                     } else {
+                         window.location.reload();
+                     }
                  } catch (e) {
                      alert("참여 실패: " + e.message);
                  }
@@ -727,6 +731,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function initializeCalendar() {
         window.initializeCalendar = initializeCalendar; // Expose for DataManager
+        
+        window.refreshCalendarApp = async (targetCalendarId) => {
+            if (targetCalendarId) DataManager.currentCalendarId = targetCalendarId;
+            await loadCalendars();
+        };
+
         const yearSelect = document.getElementById('year-select');
         const monthSelect = document.getElementById('month-select');
         const calendarElement = document.getElementById('calendar');
