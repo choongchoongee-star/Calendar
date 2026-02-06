@@ -291,6 +291,13 @@ header {
     background-color: #fff;
     color: #333;
     border: 1px solid #ccc;
+    margin-bottom: 10px;
+}
+
+.login-guest {
+    background-color: #6c757d;
+    color: #fff;
+    border: 1px solid #6c757d;
 }
 
 /* Calendar Drawer (Sidebar) */
