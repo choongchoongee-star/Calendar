@@ -352,7 +352,10 @@ const DataManager = {
             email: email,
             options: { 
                 shouldCreateUser: true,
-                emailRedirectTo: redirectUrl
+                emailRedirectTo: redirectUrl,
+                data: {
+                    invitation_message: 'You have been invited to a shared calendar.'
+                }
             }
         });
         if (error) throw error;
