@@ -891,6 +891,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         shareBtn.onclick = async () => {
             const email = shareEmailInput.value.trim();
             if (!email) return alert("이메일을 입력하세요.");
+            
+            if (window.location.protocol === 'file:') {
+                alert("주의: 로컬 파일(file://) 환경에서는 이메일 초대가 작동하지 않을 수 있습니다. 웹 서버(localhost 또는 배포된 사이트)에서 실행해주세요.");
+            }
+
             try {
                 const result = await DataManager.shareCalendar(email);
                 if (result.status === 'success') {
@@ -900,7 +905,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (confirm("사용자를 찾을 수 없습니다. 자동으로 초대 메일(로그인 링크)을 보내시겠습니까?")) {
                         try {
                             await DataManager.sendInvite(email);
-                            alert("초대 메일 발송 요청을 완료했습니다!\n\n⚠️ 주의: 무료 버전 사용 시 발송 제한이 있을 수 있습니다.\n\n메일함(스팸 포함)을 확인해주시고, 메일이 오지 않는다면 잠시 후 다시 시도해주세요.");
+                            alert("초대 메일이 전송되었습니다!\n상대방이 해당 링크로 로그인하면 다시 캘린더에 추가해주세요.");
                         } catch (err) {
                             alert("초대 실패: " + err.message);
                         }
