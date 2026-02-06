@@ -358,7 +358,12 @@ const DataManager = {
                 }
             }
         });
-        if (error) throw error;
+        if (error) {
+            if (error.status === 429 || error.message.includes("rate limit")) {
+                throw new Error("이메일 발송 제한이 초과되었습니다. 잠시 후(약 1분) 다시 시도해주세요.");
+            }
+            throw error;
+        }
     },
 
     async joinCalendar(calendarId) {
