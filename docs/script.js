@@ -82,6 +82,9 @@ const DataManager = {
             if (window.initializeCalendar) {
                 window.initializeCalendar();
             }
+            if (window.checkInvite) {
+                window.checkInvite();
+            }
             return;
         }
 
@@ -302,67 +305,6 @@ const DataManager = {
         // Reset selection if needed
         if (this.currentCalendarId === id) {
             this.currentCalendarId = null;
-        }
-    },
-
-    async shareCalendar(email) {
-        if (this.isGuest) {
-            alert("게스트 모드에서는 공유 기능을 사용할 수 없습니다. 로그인해주세요.");
-            return { status: 'error' };
-        }
-
-        // 1. Find user by email (using profiles table)
-        const { data: profiles, error: pError } = await this.client
-            .from('profiles')
-            .select('id')
-            .eq('email', email)
-            .single();
-        
-        if (pError || !profiles) return { status: 'not_found' };
-
-        // 2. Add to calendar_members
-        const { error } = await this.client.from('calendar_members').insert([{
-            calendar_id: this.currentCalendarId,
-            user_id: profiles.id,
-            role: 'editor'
-        }]);
-        
-        if (error) {
-            if (error.code === '23505') throw new Error("이미 공유된 사용자입니다.");
-            throw error;
-        }
-        return { status: 'success' };
-    },
-
-    async sendInvite(email, calendarId) {
-        if (this.isGuest) return;
-        console.log("Sending invitation to:", email);
-        
-        let redirectUrl = window.location.href.split('?')[0].split('#')[0];
-        // Ensure standard URL format
-        if (!redirectUrl.endsWith('/') && !redirectUrl.endsWith('.html')) {
-             redirectUrl += '/';
-        }
-        
-        if (calendarId) {
-            redirectUrl += `?invite_calendar_id=${calendarId}`;
-        }
-
-        const { error } = await this.client.auth.signInWithOtp({
-            email: email,
-            options: { 
-                shouldCreateUser: true,
-                emailRedirectTo: redirectUrl,
-                data: {
-                    invitation_message: 'You have been invited to a shared calendar.'
-                }
-            }
-        });
-        if (error) {
-            if (error.status === 429 || error.message.includes("rate limit")) {
-                throw new Error("이메일 발송 제한이 초과되었습니다. 잠시 후(약 1분) 다시 시도해주세요.");
-            }
-            throw error;
         }
     },
 
@@ -662,10 +604,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Check for pending invite
     async function checkInvite() {
+        window.checkInvite = checkInvite; // Expose
         const urlParams = new URLSearchParams(window.location.search);
         const inviteCalendarId = urlParams.get('invite_calendar_id');
         
         if (inviteCalendarId && DataManager.session) {
+             if (DataManager.isGuest) {
+                 alert("공유 캘린더에 참여하려면 로그인이 필요합니다. 로그인 후 다시 링크를 클릭해주세요.");
+                 const newUrl = window.location.href.split('?')[0];
+                 window.history.replaceState({}, document.title, newUrl);
+                 return;
+             }
+
              // Clean URL
              const newUrl = window.location.href.split('?')[0];
              window.history.replaceState({}, document.title, newUrl);
@@ -764,9 +714,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const settingsModal = document.getElementById('settings-modal');
         const closeSettingsBtn = document.querySelector('.settings-close');
         const settingsLogoutBtn = document.getElementById('settings-logout-btn');
-        const shareBtn = document.getElementById('share-btn');
         const shareLinkBtn = document.getElementById('share-link-btn');
-        const shareEmailInput = document.getElementById('share-email');
 
         // Modal Elements
         const modal = document.getElementById('add-schedule-modal');
@@ -956,25 +904,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         settingsLogoutBtn.onclick = () => DataManager.signOut();
 
         // --- Sharing Logic ---
-        shareBtn.onclick = async () => {
-            const email = shareEmailInput.value.trim();
-            if (!email) return alert("이메일을 입력하세요.");
-            
-            if (window.location.protocol === 'file:') {
-                alert("주의: 로컬 파일(file://) 환경에서는 이메일 초대가 작동하지 않을 수 있습니다. 웹 서버(localhost 또는 배포된 사이트)에서 실행해주세요.");
-            }
-
-            try {
-                if (confirm(`${email}님에게 초대 메일을 보내시겠습니까?\n(상대방이 메일의 링크를 통해 접속하면 캘린더에 추가됩니다)`)) {
-                    await DataManager.sendInvite(email, DataManager.currentCalendarId);
-                    alert("초대 메일이 전송되었습니다!\n상대방이 해당 링크로 로그인하면 캘린더에 멤버로 추가됩니다.");
-                    shareEmailInput.value = '';
-                }
-            } catch (e) {
-                alert("초대 실패: " + e.message);
-            }
-        };
-
         shareLinkBtn.onclick = async () => {
             if (DataManager.isGuest) {
                 return alert("게스트 모드에서는 공유할 수 없습니다.");
