@@ -1061,7 +1061,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (ev.color && ev.type !== 'holiday' && ev.type !== 'special') item.style.borderLeftColor = ev.color;
                     const contentDiv = document.createElement('div');
                     contentDiv.style.flex = '1';
-                    contentDiv.innerHTML = `<div class="list-item-time">${ev.startTime || '하루 종일'}</div><div class="list-item-title">${ev.text}</div>`;
+                    
+                    const timeDiv = document.createElement('div');
+                    timeDiv.className = 'list-item-time';
+                    timeDiv.textContent = ev.startTime || '하루 종일';
+                    
+                    const titleDiv = document.createElement('div');
+                    titleDiv.className = 'list-item-title';
+                    titleDiv.textContent = ev.text;
+                    
+                    contentDiv.appendChild(timeDiv);
+                    contentDiv.appendChild(titleDiv);
+                    
                     item.appendChild(contentDiv);
                     if (ev.type !== 'holiday' && ev.type !== 'special') {
                         item.style.cursor = 'pointer';
