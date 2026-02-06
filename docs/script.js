@@ -837,7 +837,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     e.stopPropagation(); 
                     const msg = isOwner 
                         ? `'${cal.title}' 캘린더를 영구 삭제하시겠습니까? \n(모든 멤버에게서 삭제됩니다)` 
-                        : `'${cal.title}' 공유 캘린더에서 나가시겠습니까? \n(다른 멤버는 계속 사용할 수 있습니다)`;
+                        : `'${cal.title}' 공유 캘린더에서 나가시겠습니까? \n(다시 입장하려면 캘린더 주인에게 초대를 요청해야 합니다)`;
                     
                     if (confirm(msg)) {
                         try {
