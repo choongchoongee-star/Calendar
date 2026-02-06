@@ -26,6 +26,7 @@ const sha256 = async (plain) => {
 const DataManager = {
     client: null,
     session: null,
+    isGuest: false,
     currentCalendarId: null,
     calendars: [],
     schedules: [],
@@ -40,6 +41,12 @@ const DataManager = {
     },
 
     async checkSession() {
+        // Check if guest mode was previously active
+        if (localStorage.getItem('isGuest') === 'true') {
+            this.isGuest = true;
+            return { user: { email: 'guest@local' } }; // Mock session object
+        }
+
         if (!this.client) {
             console.error("Supabase client not initialized.");
             return null;
@@ -53,7 +60,27 @@ const DataManager = {
         return session;
     },
 
+    async enableGuestMode() {
+        this.isGuest = true;
+        this.session = { user: { id: 'guest', email: 'guest@local' } };
+        localStorage.setItem('isGuest', 'true');
+        
+        // Ensure at least one default calendar exists for guest
+        const guestCalendars = JSON.parse(localStorage.getItem('guest_calendars') || '[]');
+        if (guestCalendars.length === 0) {
+            this.createCalendar("내 캘린더");
+        }
+    },
+
     async signIn(provider) {
+        if (provider === 'guest') {
+            await this.enableGuestMode();
+            document.getElementById('login-modal').style.display = 'none';
+            document.getElementById('app').style.filter = 'none';
+            if (window.initializeCalendar) window.initializeCalendar();
+            return;
+        }
+
         if (!this.client) {
             alert("로그인 서비스를 사용할 수 없습니다. (Supabase 초기화 실패)");
             return;
@@ -123,11 +150,34 @@ const DataManager = {
     },
 
     async signOut() {
+        if (this.isGuest) {
+            this.isGuest = false;
+            localStorage.removeItem('isGuest');
+            window.location.reload();
+            return;
+        }
         await this.client.auth.signOut();
         window.location.reload();
     },
 
     async fetchCalendars() {
+        if (this.isGuest) {
+            console.log("Fetching guest calendars from local storage...");
+            const stored = localStorage.getItem('guest_calendars');
+            this.calendars = stored ? JSON.parse(stored) : [];
+            
+            if (this.calendars.length === 0) {
+                console.log("No guest calendars. Creating default...");
+                await this.createCalendar("내 캘린더");
+                return await this.fetchCalendars();
+            }
+            
+            if (!this.currentCalendarId && this.calendars.length > 0) {
+                this.currentCalendarId = this.calendars[0].id;
+            }
+            return this.calendars;
+        }
+
         if (!this.session) return [];
         console.log("Fetching calendars...");
         const { data, error } = await this.client.from('calendars').select('*');
@@ -154,6 +204,20 @@ const DataManager = {
     },
 
     async createCalendar(title) {
+        if (this.isGuest) {
+            const newCalendar = {
+                id: 'guest-cal-' + Date.now(),
+                title: title,
+                owner_id: 'guest',
+                created_at: new Date().toISOString()
+            };
+            const calendars = JSON.parse(localStorage.getItem('guest_calendars') || '[]');
+            calendars.push(newCalendar);
+            localStorage.setItem('guest_calendars', JSON.stringify(calendars));
+            this.currentCalendarId = newCalendar.id;
+            return;
+        }
+
         if (!this.session || !this.session.user) throw new Error("로그인이 필요합니다.");
         console.log("Creating calendar for user:", this.session.user.id);
         
@@ -174,6 +238,22 @@ const DataManager = {
     },
 
     async deleteCalendar(id) {
+        if (this.isGuest) {
+            let calendars = JSON.parse(localStorage.getItem('guest_calendars') || '[]');
+            calendars = calendars.filter(c => c.id !== id);
+            localStorage.setItem('guest_calendars', JSON.stringify(calendars));
+            
+            // Also delete associated schedules
+            let schedules = JSON.parse(localStorage.getItem('guest_schedules') || '[]');
+            schedules = schedules.filter(s => s.calendar_id !== id);
+            localStorage.setItem('guest_schedules', JSON.stringify(schedules));
+
+            if (this.currentCalendarId === id) {
+                this.currentCalendarId = null;
+            }
+            return;
+        }
+
         if (!this.session) throw new Error("로그인이 필요합니다.");
         
         // Check ownership first
@@ -206,6 +286,11 @@ const DataManager = {
     },
 
     async shareCalendar(email) {
+        if (this.isGuest) {
+            alert("게스트 모드에서는 공유 기능을 사용할 수 없습니다. 로그인해주세요.");
+            return { status: 'error' };
+        }
+
         // 1. Find user by email (using profiles table)
         const { data: profiles, error: pError } = await this.client
             .from('profiles')
@@ -230,6 +315,7 @@ const DataManager = {
     },
 
     async sendInvite(email) {
+        if (this.isGuest) return;
         // Send a magic link (OTP) to the user which acts as an invitation/signup
         console.log("Sending invitation to:", email);
         const { error } = await this.client.auth.signInWithOtp({
@@ -240,6 +326,25 @@ const DataManager = {
     },
 
     async fetchSchedules() {
+        if (this.isGuest) {
+            if (!this.currentCalendarId) return [];
+            const allSchedules = JSON.parse(localStorage.getItem('guest_schedules') || '[]');
+            const data = allSchedules.filter(s => s.calendar_id === this.currentCalendarId);
+            
+            this.schedules = data.map(item => ({
+                id: item.id,
+                text: item.text,
+                startDate: item.start_date,
+                endDate: item.end_date,
+                startTime: item.start_time,
+                endTime: item.end_time,
+                groupId: item.group_id,
+                color: item.color,
+                calendarId: item.calendar_id
+            }));
+            return this.schedules;
+        }
+
         if (!this.client || !this.currentCalendarId) return [];
         console.log(`Fetching schedules for calendar: ${this.currentCalendarId}`);
         const { data, error } = await this.client
@@ -265,38 +370,84 @@ const DataManager = {
     },
 
     async addSchedule(payload) {
-        if (!this.client) throw new Error("Supabase not initialized");
         payload.calendar_id = this.currentCalendarId; // Assign to current calendar
+        
+        if (this.isGuest) {
+            const schedules = JSON.parse(localStorage.getItem('guest_schedules') || '[]');
+            // Simulate SQL insert
+            const newSchedule = { ...payload, id: 'guest-sch-' + Date.now() + Math.random() };
+            schedules.push(newSchedule);
+            localStorage.setItem('guest_schedules', JSON.stringify(schedules));
+            return;
+        }
+
+        if (!this.client) throw new Error("Supabase not initialized");
         const { error } = await this.client.from('schedules').insert([payload]);
         if (error) throw error;
     },
     
     async addSchedules(payloads) {
-        if (!this.client) throw new Error("Supabase not initialized");
         payloads.forEach(p => p.calendar_id = this.currentCalendarId);
+        
+        if (this.isGuest) {
+            const schedules = JSON.parse(localStorage.getItem('guest_schedules') || '[]');
+            payloads.forEach(p => {
+                schedules.push({ ...p, id: 'guest-sch-' + Date.now() + Math.random() });
+            });
+            localStorage.setItem('guest_schedules', JSON.stringify(schedules));
+            return;
+        }
+
+        if (!this.client) throw new Error("Supabase not initialized");
         const { error } = await this.client.from('schedules').insert(payloads);
         if (error) throw error;
     },
 
     async updateSchedule(id, payload) {
+        if (this.isGuest) {
+            let schedules = JSON.parse(localStorage.getItem('guest_schedules') || '[]');
+            const index = schedules.findIndex(s => s.id === id);
+            if (index !== -1) {
+                schedules[index] = { ...schedules[index], ...payload };
+                localStorage.setItem('guest_schedules', JSON.stringify(schedules));
+            }
+            return;
+        }
+
         if (!this.client) throw new Error("Supabase not initialized");
         const { error } = await this.client.from('schedules').update(payload).eq('id', id);
         if (error) throw error;
     },
 
     async deleteSchedule(id) {
+        if (this.isGuest) {
+            let schedules = JSON.parse(localStorage.getItem('guest_schedules') || '[]');
+            schedules = schedules.filter(s => s.id !== id);
+            localStorage.setItem('guest_schedules', JSON.stringify(schedules));
+            return;
+        }
+
         if (!this.client) throw new Error("Supabase not initialized");
         const { error } = await this.client.from('schedules').delete().eq('id', id);
         if (error) throw error;
     },
 
     async deleteSchedulesByGroupId(groupId) {
+        if (this.isGuest) {
+            let schedules = JSON.parse(localStorage.getItem('guest_schedules') || '[]');
+            schedules = schedules.filter(s => s.group_id !== groupId);
+            localStorage.setItem('guest_schedules', JSON.stringify(schedules));
+            return;
+        }
+
         if (!this.client) throw new Error("Supabase not initialized");
         const { error } = await this.client.from('schedules').delete().eq('group_id', groupId);
         if (error) throw error;
     },
 
     async syncToCloud() {
+        if (this.isGuest) return; // Guest schedules are not synced
+
         if (!this.client || !this.currentCalendarId) return;
         // Only sync if I am the owner (simplification for now, strictly speaking editors should too)
         // We'll upload to a file named after the Calendar ID to allow multiple subscriptions
@@ -435,6 +586,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const loginModal = document.getElementById('login-modal');
     const loginAppleBtn = document.getElementById('login-apple-btn');
     const loginGoogleBtn = document.getElementById('login-google-btn');
+    const loginGuestBtn = document.getElementById('login-guest-btn');
     const appContainer = document.getElementById('app');
 
     // Login Handler Wrapper
@@ -446,6 +598,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Attach Listeners Immediately (Do not wait for async session check)
     loginAppleBtn.addEventListener('click', () => handleLogin('apple'));
     loginGoogleBtn.addEventListener('click', () => handleLogin('google'));
+    loginGuestBtn.addEventListener('click', () => handleLogin('guest'));
     
     // Subscribe to Auth Changes (Required for Mobile Web Redirects)
     DataManager.client.auth.onAuthStateChange((event, session) => {
