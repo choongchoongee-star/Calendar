@@ -537,14 +537,7 @@ const CalendarUtils = {
         const special = [];
         let curr = new Date(s);
         while (curr <= e) {
-            const m = curr.getMonth();
-            const d = curr.getDate();
-            if ((m === 4 && d === 18) || (m === 9 && d === 31)) {
-                special.push({id: `sp-${m}-${d}`, text: "HBD❤️", startDate: this.formatDate(curr), endDate: this.formatDate(curr), type: 'special'});
-            }
-            if (m === 10 && d === 9) {
-                special.push({id: `sp-${m}-${d}`, text: "❤️", startDate: this.formatDate(curr), endDate: this.formatDate(curr), type: 'special'});
-            }
+            // No recurring special dates currently defined
             curr.setDate(curr.getDate() + 1);
         }
         return special;
