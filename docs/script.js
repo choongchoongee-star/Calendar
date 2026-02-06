@@ -677,7 +677,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Modal Elements
         const modal = document.getElementById('add-schedule-modal');
-        const closeModalButton = document.querySelector('.modal-content .close-button');
+        const closeModalButton = document.querySelector('#add-schedule-modal .close-button');
         const saveScheduleButton = document.getElementById('save-schedule');
         const scheduleTextInput = document.getElementById('schedule-text');
         const startDateInput = document.getElementById('start-date');
