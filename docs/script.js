@@ -167,6 +167,28 @@ const DataManager = {
         window.location.reload();
     },
 
+    async deleteAccount() {
+        if (this.isGuest) {
+            localStorage.clear();
+            window.location.reload();
+            return;
+        }
+
+        if (!this.session) return;
+
+        // 1. Delete all calendars owned by the user
+        // (Assuming schedules and members are linked with ON DELETE CASCADE in DB)
+        const { error: deleteError } = await this.client
+            .from('calendars')
+            .delete()
+            .eq('owner_id', this.session.user.id);
+
+        if (deleteError) throw deleteError;
+
+        // 2. Sign out (Full account deletion from auth.users requires a backend Edge Function)
+        await this.signOut();
+    },
+
     async fetchCalendars() {
         if (this.isGuest) {
             console.log("Fetching guest calendars from local storage...");
@@ -714,6 +736,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const settingsModal = document.getElementById('settings-modal');
         const closeSettingsBtn = document.querySelector('.settings-close');
         const settingsLogoutBtn = document.getElementById('settings-logout-btn');
+        const deleteAccountBtn = document.getElementById('delete-account-btn');
         const shareLinkBtn = document.getElementById('share-link-btn');
 
         // Modal Elements
@@ -902,6 +925,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         logoutBtn.onclick = () => DataManager.signOut();
         settingsLogoutBtn.onclick = () => DataManager.signOut();
+
+        deleteAccountBtn.onclick = async () => {
+            if (confirm("정말로 계정을 탈퇴하시겠습니까?\n작성하신 모든 캘린더와 일정 데이터가 영구적으로 삭제됩니다.")) {
+                if (confirm("마지막 확인입니다. 정말로 모든 데이터를 삭제하고 탈퇴하시겠습니까?")) {
+                    try {
+                        await DataManager.deleteAccount();
+                        alert("탈퇴 처리가 완료되었습니다.");
+                    } catch (e) {
+                        alert("탈퇴 처리 중 오류가 발생했습니다: " + e.message);
+                    }
+                }
+            }
+        };
 
         // --- Sharing Logic ---
         shareLinkBtn.onclick = async () => {
