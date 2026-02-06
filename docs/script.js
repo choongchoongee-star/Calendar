@@ -698,7 +698,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // ... Dropdown Initialization (Same as before) ...
         const currentYear = new Date().getFullYear();
-        for (let y = currentYear - 10; y <= currentYear + 10; y++) {
+        for (let y = 1900; y <= 2100; y++) {
             const option = document.createElement('option');
             option.value = y;
             option.textContent = y;
