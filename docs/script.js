@@ -241,6 +241,22 @@ const DataManager = {
         }
     },
 
+    async updateCalendar(id, title) {
+        if (this.isGuest) {
+            let calendars = JSON.parse(localStorage.getItem('guest_calendars') || '[]');
+            const index = calendars.findIndex(c => c.id === id);
+            if (index !== -1) {
+                calendars[index].title = title;
+                localStorage.setItem('guest_calendars', JSON.stringify(calendars));
+            }
+            return;
+        }
+
+        if (!this.session) throw new Error("로그인이 필요합니다.");
+        const { error } = await this.client.from('calendars').update({ title: title }).eq('id', id);
+        if (error) throw error;
+    },
+
     async deleteCalendar(id) {
         if (this.isGuest) {
             let calendars = JSON.parse(localStorage.getItem('guest_calendars') || '[]');
@@ -752,8 +768,41 @@ document.addEventListener('DOMContentLoaded', async () => {
                     loadCalendars(); 
                 };
 
-                // Delete / Leave Button
                 const isOwner = cal.owner_id === DataManager.session.user.id;
+                
+                // Edit Button (Rename)
+                if (isOwner) {
+                    const editBtn = document.createElement('button');
+                    editBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>';
+                    editBtn.style.background = '#4A90E2';
+                    editBtn.style.color = 'white';
+                    editBtn.style.border = 'none';
+                    editBtn.style.borderRadius = '50%';
+                    editBtn.style.width = '24px';
+                    editBtn.style.height = '24px';
+                    editBtn.style.marginLeft = '10px';
+                    editBtn.style.cursor = 'pointer';
+                    editBtn.style.display = 'flex';
+                    editBtn.style.justifyContent = 'center';
+                    editBtn.style.alignItems = 'center';
+                    editBtn.style.padding = '4px';
+                    
+                    editBtn.onclick = async (e) => {
+                        e.stopPropagation();
+                        const newName = prompt("캘린더 이름 변경:", cal.title);
+                        if (newName && newName !== cal.title) {
+                            try {
+                                await DataManager.updateCalendar(cal.id, newName);
+                                await loadCalendars();
+                            } catch (err) {
+                                alert("이름 변경 실패: " + err.message);
+                            }
+                        }
+                    };
+                    li.appendChild(editBtn);
+                }
+
+                // Delete / Leave Button
                 const delBtn = document.createElement('button');
                 delBtn.innerHTML = isOwner ? '&times;' : 'out'; // X for owner, text/icon for leaver
                 if (!isOwner) {
