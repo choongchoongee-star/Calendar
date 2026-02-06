@@ -702,7 +702,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const endTimeInput = document.getElementById('end-time');
         const enableRecurrenceCheckbox = document.getElementById('enable-recurrence');
         const recurrenceOptions = document.getElementById('recurrence-options');
-        const recurrenceIntervalInput = document.getElementById('recurrence-interval');
+        const recurrenceTypeSelect = document.getElementById('recurrence-type');
         const recurrenceCountInput = document.getElementById('recurrence-count');
         const listModal = document.getElementById('schedule-list-modal');
         const closeListModalButton = document.querySelector('.list-close');
@@ -1077,15 +1077,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             try {
                 if (enableRecurrenceCheckbox.checked && !editingGroupId) {
                     // New Recurrence
-                    const interval = parseInt(recurrenceIntervalInput.value, 10);
+                    const type = recurrenceTypeSelect.value;
                     const count = parseInt(recurrenceCountInput.value, 10);
                     const payloads = [];
                     const groupId = Math.random().toString(36).substring(2, 15);
                     const baseStart = new Date(startDateInput.value);
                     const baseEnd = new Date(endDateInput.value);
                     for (let i = 0; i < count; i++) {
-                        const nextStart = new Date(baseStart); nextStart.setDate(baseStart.getDate() + (i * interval));
-                        const nextEnd = new Date(baseEnd); nextEnd.setDate(baseEnd.getDate() + (i * interval));
+                        const nextStart = new Date(baseStart);
+                        const nextEnd = new Date(baseEnd);
+                        
+                        if (type === 'daily') {
+                            nextStart.setDate(baseStart.getDate() + i);
+                            nextEnd.setDate(baseEnd.getDate() + i);
+                        } else if (type === 'weekly') {
+                            nextStart.setDate(baseStart.getDate() + (i * 7));
+                            nextEnd.setDate(baseEnd.getDate() + (i * 7));
+                        } else if (type === 'yearly') {
+                            nextStart.setFullYear(baseStart.getFullYear() + i);
+                            nextEnd.setFullYear(baseEnd.getFullYear() + i);
+                        }
+                        
                         payloads.push({ ...payload, start_date: CalendarUtils.formatDate(nextStart), end_date: CalendarUtils.formatDate(nextEnd), group_id: groupId });
                     }
                     await DataManager.addSchedules(payloads);

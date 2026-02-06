@@ -124,8 +124,12 @@
                     <label for="enable-recurrence">반복 설정</label>
                 </div>
                 <div id="recurrence-options" style="display:none; margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px;">
-                    <label for="recurrence-interval">반복 주기 (일):</label>
-                    <input type="number" id="recurrence-interval" min="1" value="7">
+                    <label for="recurrence-type">반복 유형:</label>
+                    <select id="recurrence-type" style="width: 100%; padding: 8px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #ccc;">
+                        <option value="daily">매일</option>
+                        <option value="weekly" selected>매주</option>
+                        <option value="yearly">매년</option>
+                    </select>
                     
                     <label for="recurrence-count">총 반복 횟수:</label>
                     <input type="number" id="recurrence-count" min="1" value="1">
