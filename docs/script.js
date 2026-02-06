@@ -44,7 +44,8 @@ const DataManager = {
         // Check if guest mode was previously active
         if (localStorage.getItem('isGuest') === 'true') {
             this.isGuest = true;
-            return { user: { email: 'guest@local' } }; // Mock session object
+            this.session = { user: { id: 'guest', email: 'guest@local' } };
+            return this.session;
         }
 
         if (!this.client) {
@@ -79,17 +80,7 @@ const DataManager = {
             document.getElementById('login-modal').style.display = 'none';
             document.getElementById('app').style.filter = 'none';
             if (window.initializeCalendar) {
-                console.log("Calling initializeCalendar from Guest login");
-                try {
-                    window.initializeCalendar();
-                    console.log("initializeCalendar returned");
-                } catch (err) {
-                    alert("Error executing initializeCalendar: " + err.message);
-                    console.error("Error in initializeCalendar:", err);
-                }
-            } else {
-                alert("Critical: window.initializeCalendar is not defined!");
-                console.error("window.initializeCalendar is not defined");
+                window.initializeCalendar();
             }
             return;
         }
@@ -668,8 +659,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function initializeCalendar() {
-        try {
-        console.log("initializeCalendar started");
         window.initializeCalendar = initializeCalendar; // Expose for DataManager
         const yearSelect = document.getElementById('year-select');
         const monthSelect = document.getElementById('month-select');
@@ -1107,11 +1096,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (e.target === settingsModal) settingsModal.style.display = 'none';
         };
 
-        console.log("Calling loadCalendars...");
         loadCalendars(); // Start the chain
-        } catch (e) {
-            alert("Error in initializeCalendar: " + e.message);
-            console.error(e);
-        }
     }
 });
