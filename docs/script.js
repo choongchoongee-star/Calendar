@@ -899,7 +899,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             try {
                 const result = await DataManager.shareCalendar(email);
                 if (result.status === 'success') {
-                    alert(`${email}님을 캘린더 멤버로 추가했습니다!\n(이미 가입된 사용자이므로 즉시 추가되었습니다)`);
+                    // Also send email for re-invitation or existing users
+                    await DataManager.sendInvite(email);
+                    alert(`${email}님을 캘린더에 추가하고 초대 메일을 보냈습니다.`);
                     shareEmailInput.value = '';
                 } else if (result.status === 'not_found') {
                     if (confirm("사용자를 찾을 수 없습니다. 자동으로 초대 메일(로그인 링크)을 보내시겠습니까?")) {
