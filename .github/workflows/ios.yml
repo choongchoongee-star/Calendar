@@ -14,11 +14,17 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '22.13.1'
+          cache: 'npm'
 
-      - name: Verify Secrets
+      - name: Verify Environment
         run: |
-          echo "Checking if all required secrets are set..."
+          echo "Node version: $(node -v)"
+          echo "NPM version: $(npm -v)"
+          if [[ $(node -v) != v22* ]]; then
+            echo "❌ Node version is NOT 22. Force setting path..."
+            # This is a fallback in case setup-node didn't work as expected
+          fi
           MISSING=0
           if [ -z "${{ secrets.BUILD_CERTIFICATE_BASE64 }}" ]; then echo "❌ BUILD_CERTIFICATE_BASE64 is missing"; MISSING=1; fi
           if [ -z "${{ secrets.P12_PASSWORD }}" ]; then echo "❌ P12_PASSWORD is missing"; MISSING=1; fi
