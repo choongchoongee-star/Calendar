@@ -13,13 +13,13 @@
 	<key>stripSwiftSymbols</key>
 	<true/>
 	<key>teamID</key>
-	<string>YOUR_TEAM_ID</string>
+	<string>XLFLVNJU9Q</string>
 	<key>uploadSymbols</key>
 	<true/>
 	<key>provisioningProfiles</key>
 	<dict>
 		<key>com.dangmoo.calendar</key>
-		<string>REPLACE_WITH_PROVISIONING_PROFILE_NAME</string>
+		<string>Calendar</string>
 	</dict>
 </dict>
 </plist>
