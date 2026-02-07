@@ -16,15 +16,36 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Verify Secrets
+        run: |
+          echo "Checking if all required secrets are set..."
+          MISSING=0
+          if [ -z "${{ secrets.BUILD_CERTIFICATE_BASE64 }}" ]; then echo "❌ BUILD_CERTIFICATE_BASE64 is missing"; MISSING=1; fi
+          if [ -z "${{ secrets.P12_PASSWORD }}" ]; then echo "❌ P12_PASSWORD is missing"; MISSING=1; fi
+          if [ -z "${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}" ]; then echo "❌ BUILD_PROVISION_PROFILE_BASE64 is missing"; MISSING=1; fi
+          if [ -z "${{ secrets.KEYCHAIN_PASSWORD }}" ]; then echo "❌ KEYCHAIN_PASSWORD is missing"; MISSING=1; fi
+          if [ -z "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" ]; then echo "❌ APP_STORE_CONNECT_ISSUER_ID is missing"; MISSING=1; fi
+          if [ -z "${{ secrets.APP_STORE_CONNECT_KEY_ID }}" ]; then echo "❌ APP_STORE_CONNECT_KEY_ID is missing"; MISSING=1; fi
+          if [ -z "${{ secrets.APP_STORE_CONNECT_API_KEY }}" ]; then echo "❌ APP_STORE_CONNECT_API_KEY is missing"; MISSING=1; fi
+          
+          if [ $MISSING -eq 1 ]; then
+            echo "Error: Some required secrets are not set. Please add them in GitHub Repository Settings > Secrets > Actions."
+            exit 1
+          else
+            echo "✅ All secrets are present."
+          fi
+
       - name: Install dependencies
-        run: npm install
+        run: |
+          node -v
+          npm -v
+          npm ci || npm install
 
       - name: Sync Capacitor
-        run: npx cap sync ios
+        run: |
+          npx cap --version
+          npx cap sync ios --verbose
 
-      # This step sets up the signing identity so Xcode can build a release version.
-      # You must add these secrets in your GitHub Repository Settings > Secrets and variables > Actions
-      # If you just want to test if it compiles (without signing), comment out this step and the "Archive" step.
       - name: Install the Apple Certificate and Provisioning Profile
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
@@ -32,32 +53,31 @@ jobs:
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          # create variables
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
           PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
 
-          # import certificate and provisioning profile from secrets
+          echo "Decoding certificate and provisioning profile..."
           echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
           echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
 
-          # create temporary keychain
+          echo "Creating temporary keychain..."
           security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-          # import certificate to keychain
+          echo "Importing certificate to keychain..."
           security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
 
-          # apply provisioning profile
+          echo "Applying provisioning profile..."
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
 
       - name: Build and Archive (IPA)
         run: |
           cd ios
-          # The PROVISIONING_PROFILE_SPECIFIER should match the name of the profile you created in Apple Portal
+          echo "Starting xcodebuild archive..."
           xcodebuild -workspace App/App.xcworkspace \
             -scheme App \
             -sdk iphoneos \
@@ -67,7 +87,7 @@ jobs:
             CODE_SIGN_IDENTITY="Apple Distribution" \
             CODE_SIGN_STYLE="Manual"
 
-          # Export IPA
+          echo "Exporting IPA..."
           xcodebuild -exportArchive \
             -archivePath $PWD/build/App.xcarchive \
             -exportOptionsPlist App/App/exportOptions.plist \
