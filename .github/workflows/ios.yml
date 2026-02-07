@@ -14,17 +14,21 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.13.1'
-          cache: 'npm'
+          node-version: '22.x'
+          # 캐시를 일시적으로 비활성화하여 깨끗한 환경에서 시작합니다.
 
-      - name: Verify Environment
+      - name: Verify Node Version
         run: |
-          echo "Node version: $(node -v)"
-          echo "NPM version: $(npm -v)"
-          if [[ $(node -v) != v22* ]]; then
-            echo "❌ Node version is NOT 22. Force setting path..."
-            # This is a fallback in case setup-node didn't work as expected
+          NODE_VER=$(node -v)
+          echo "Current Node Version: $NODE_VER"
+          if [[ $NODE_VER != v22* ]]; then
+            echo "❌ ERROR: Node version is not 22! Current: $NODE_VER"
+            exit 1
           fi
+
+      - name: Verify Secrets
+        run: |
+          echo "Checking if all required secrets are set..."
           MISSING=0
           if [ -z "${{ secrets.BUILD_CERTIFICATE_BASE64 }}" ]; then echo "❌ BUILD_CERTIFICATE_BASE64 is missing"; MISSING=1; fi
           if [ -z "${{ secrets.P12_PASSWORD }}" ]; then echo "❌ P12_PASSWORD is missing"; MISSING=1; fi
@@ -35,22 +39,18 @@ jobs:
           if [ -z "${{ secrets.APP_STORE_CONNECT_API_KEY }}" ]; then echo "❌ APP_STORE_CONNECT_API_KEY is missing"; MISSING=1; fi
           
           if [ $MISSING -eq 1 ]; then
-            echo "Error: Some required secrets are not set. Please add them in GitHub Repository Settings > Secrets > Actions."
+            echo "Error: Required secrets are missing."
             exit 1
-          else
-            echo "✅ All secrets are present."
           fi
 
       - name: Install dependencies
         run: |
-          node -v
-          npm -v
-          npm ci || npm install
+          npm install
 
       - name: Sync Capacitor
         run: |
-          npx cap --version
-          npx cap sync ios --verbose
+          # npx 대신 로컬 bin 폴더의 명령어를 직접 실행하여 현재 Node 환경을 강제합니다.
+          ./node_modules/.bin/cap sync ios --verbose
 
       - name: Install the Apple Certificate and Provisioning Profile
         env:
@@ -63,27 +63,24 @@ jobs:
           PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
 
-          echo "Decoding certificate and provisioning profile..."
           echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
           echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
 
-          echo "Creating temporary keychain..."
           security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-          echo "Importing certificate to keychain..."
           security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
 
-          echo "Applying provisioning profile..."
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
 
       - name: Build and Archive (IPA)
         run: |
           cd ios
-          echo "Starting xcodebuild archive..."
+          # xcodebuild 실행 시에도 명시적으로 환경을 확인합니다.
+          node -v
           xcodebuild -workspace App/App.xcworkspace \
             -scheme App \
             -sdk iphoneos \
@@ -93,7 +90,6 @@ jobs:
             CODE_SIGN_IDENTITY="Apple Distribution" \
             CODE_SIGN_STYLE="Manual"
 
-          echo "Exporting IPA..."
           xcodebuild -exportArchive \
             -archivePath $PWD/build/App.xcarchive \
             -exportOptionsPlist App/App/exportOptions.plist \
