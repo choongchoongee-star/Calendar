@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-15 # Explicitly use macOS 15 which has better Node 22 support
+    runs-on: macos-latest
 
     steps:
       - name: Checkout repository
@@ -16,14 +16,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20'
           cache: 'npm'
-
-      - name: Verify Environment
-        run: |
-          echo "Node version: $(node -v)"
-          echo "NPM version: $(npm -v)"
-          node -e "if (parseInt(process.versions.node.split('.')[0]) < 22) process.exit(1)"
 
       - name: Install dependencies
         run: |
@@ -31,8 +25,7 @@ jobs:
 
       - name: Sync Capacitor
         run: |
-          # Run the local capacitor binary directly using the current node environment
-          node ./node_modules/.bin/cap sync ios
+          npx cap sync ios
 
       - name: Install the Apple Certificate and Provisioning Profile
         env:
