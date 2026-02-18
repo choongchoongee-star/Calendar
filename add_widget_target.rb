@@ -38,6 +38,7 @@ m_version = app_config.build_settings['MARKETING_VERSION'] || '1.0.0'
       config.build_settings['GENERATE_INFOPLIST_FILE'] = 'YES'
       config.build_settings['INFOPLIST_KEY_NSExtensionPointIdentifier'] = 'com.apple.widgetkit-extension'
       config.build_settings['INFOPLIST_KEY_CFBundleDisplayName'] = 'Dangmoo Widget'
+      config.build_settings['ASSETCATALOG_COMPILER_APPICON_NAME'] = 'AppIcon'
       config.build_settings['SKIP_INSTALL'] = 'YES'
       config.build_settings['APPLICATION_EXTENSION_API_ONLY'] = 'YES'
     end
