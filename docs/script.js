@@ -31,6 +31,15 @@ const DataManager = {
     calendars: [],
     schedules: [],
 
+    updateWidgetCalendar() {
+        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+            const WidgetBridge = window.Capacitor.Plugins.WidgetBridge;
+            if (WidgetBridge) {
+                WidgetBridge.setSelectedCalendar({ calendarId: this.currentCalendarId || "" });
+            }
+        }
+    },
+
     init(url, key) {
         if (typeof window.supabase === 'undefined') {
             console.error("Supabase SDK not loaded.");
@@ -210,6 +219,7 @@ const DataManager = {
             
             if (!this.currentCalendarId && this.calendars.length > 0) {
                 this.currentCalendarId = this.calendars[0].id;
+                this.updateWidgetCalendar();
             }
             return this.calendars;
         }
@@ -234,6 +244,7 @@ const DataManager = {
         // Select first calendar by default if none selected
         if (!this.currentCalendarId && this.calendars.length > 0) {
             this.currentCalendarId = this.calendars[0].id;
+            this.updateWidgetCalendar();
         }
         
         return this.calendars;
@@ -251,6 +262,7 @@ const DataManager = {
             calendars.push(newCalendar);
             localStorage.setItem('guest_calendars', JSON.stringify(calendars));
             this.currentCalendarId = newCalendar.id;
+            this.updateWidgetCalendar();
             return;
         }
 
@@ -270,6 +282,7 @@ const DataManager = {
         // Auto-select the new calendar
         if (data && data.length > 0) {
             this.currentCalendarId = data[0].id;
+            this.updateWidgetCalendar();
         }
     },
 
@@ -302,6 +315,7 @@ const DataManager = {
 
             if (this.currentCalendarId === id) {
                 this.currentCalendarId = null;
+                this.updateWidgetCalendar();
             }
             return;
         }
@@ -334,6 +348,7 @@ const DataManager = {
         // Reset selection if needed
         if (this.currentCalendarId === id) {
             this.currentCalendarId = null;
+            this.updateWidgetCalendar();
         }
     },
 
@@ -720,7 +735,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.initializeCalendar = initializeCalendar; // Expose for DataManager
         
         window.refreshCalendarApp = async (targetCalendarId) => {
-            if (targetCalendarId) DataManager.currentCalendarId = targetCalendarId;
+            if (targetCalendarId) {
+                DataManager.currentCalendarId = targetCalendarId;
+                DataManager.updateWidgetCalendar();
+            }
             await loadCalendars();
         };
 
@@ -816,6 +834,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 li.onclick = async () => {
                     DataManager.currentCalendarId = cal.id;
+                    DataManager.updateWidgetCalendar();
                     await DataManager.fetchSchedules(); 
                     updateLiveLink(); 
                     drawer.style.display = 'none';
