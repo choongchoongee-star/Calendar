@@ -51,10 +51,12 @@ widget_target.add_system_frameworks(['WidgetKit', 'SwiftUI', 'Foundation'])
 app_group = project.main_group['App']
 widget_group = app_group['WidgetSource'] || app_group.new_group('WidgetSource', 'WidgetSource')
 
-# Add WidgetBridge.swift to App target
-project.objects.select { |obj| obj.isa == 'PBXFileReference' && obj.path && obj.path.include?('WidgetBridge.swift') }.each(&:remove_from_project)
-bridge_ref = app_group.new_file('WidgetBridge.swift')
-app_target.source_build_phase.add_file_reference(bridge_ref)
+# Add WidgetBridge.swift and .m to App target
+project.objects.select { |obj| obj.isa == 'PBXFileReference' && obj.path && (obj.path.include?('WidgetBridge.swift') || obj.path.include?('WidgetBridge.m')) }.each(&:remove_from_project)
+bridge_swift_ref = app_group.new_file('WidgetBridge.swift')
+bridge_m_ref = app_group.new_file('WidgetBridge.m')
+app_target.source_build_phase.add_file_reference(bridge_swift_ref)
+app_target.source_build_phase.add_file_reference(bridge_m_ref)
 
 # Add CalendarWidget.swift to Widget target
 project.objects.select { |obj| obj.isa == 'PBXFileReference' && obj.path && obj.path.include?('CalendarWidget.swift') }.each(&:remove_from_project)

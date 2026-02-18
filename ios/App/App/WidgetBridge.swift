@@ -1,5 +1,6 @@
 import Foundation
 import Capacitor
+import WidgetKit
 
 @objc(WidgetBridge)
 public class WidgetBridge: CAPPlugin {
@@ -22,6 +23,10 @@ public class WidgetBridge: CAPPlugin {
             
             defaults.set(sanitizedCalendars, forKey: "allCalendars")
             defaults.synchronize()
+            
+            // Critical: Inform the widget system to refresh immediately
+            WidgetCenter.shared.reloadAllTimelines()
+            
             call.resolve()
         } else {
             call.reject("Could not access App Group")
