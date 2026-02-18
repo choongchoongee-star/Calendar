@@ -8,7 +8,7 @@ import SwiftUI
 
 // MARK: - 1. Data Models
 struct Schedule: Decodable, Identifiable {
-    let id: String // Changed from Int to String to match Supabase UUIDs
+    let id: String
     let text: String
     let start_date: String
     let end_date: String
@@ -18,59 +18,47 @@ struct Schedule: Decodable, Identifiable {
 struct CalendarEntry: TimelineEntry {
     let date: Date
     let schedules: [Schedule]
-    let displayMonth: Date
 }
 
-// MARK: - 2. Provider
-struct Provider: AppIntentTimelineProvider {
+// MARK: - 2. Provider (iOS 16 Compatible)
+struct Provider: TimelineProvider {
     let supabaseUrl = "https://rztrkeejliampmzcqbmx.supabase.co/rest/v1/schedules?select=*"
     let supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6dHJrZWVqbGlhbXBtemNxYm14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDE4MTksImV4cCI6MjA4NDY3NzgxOX0.ind5OQoPfWuAd_StssdeIDlrKxotW3XPhGOV63NqUWY"
 
     func placeholder(in context: Context) -> CalendarEntry {
-        CalendarEntry(date: Date(), schedules: [], displayMonth: Date())
+        CalendarEntry(date: Date(), schedules: [])
     }
 
-    func snapshot(for configuration: ChangeMonthIntent, in context: Context) async -> CalendarEntry {
-        CalendarEntry(date: Date(), schedules: [], displayMonth: Date())
+    func getSnapshot(in context: Context, completion: @escaping (CalendarEntry) -> ()) {
+        let entry = CalendarEntry(date: Date(), schedules: [])
+        completion(entry)
     }
 
-    func timeline(for configuration: ChangeMonthIntent, in context: Context) async -> Timeline<CalendarEntry> {
-        let currentDate = Date()
-        let offset = configuration.monthOffset
-        let displayMonth = Calendar.current.date(byAdding: .month, value: offset, to: currentDate) ?? currentDate
-        
-        var schedules: [Schedule] = []
-        if let url = URL(string: supabaseUrl) {
-            var request = URLRequest(url: url)
-            request.addValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
-            request.addValue(supabaseKey, forHTTPHeaderField: "apikey")
-            
-            do {
-                let (data, _) = try await URLSession.shared.data(for: request)
-                schedules = try JSONDecoder().decode([Schedule].self, from: data)
-            } catch {
-                print("Failed to fetch schedules: \(error)")
+    func getTimeline(in context: Context, completion: @escaping (Timeline<CalendarEntry>) -> ()) {
+        Task {
+            var schedules: [Schedule] = []
+            if let url = URL(string: supabaseUrl) {
+                var request = URLRequest(url: url)
+                request.addValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
+                request.addValue(supabaseKey, forHTTPHeaderField: "apikey")
+                
+                do {
+                    let (data, _) = try await URLSession.shared.data(for: request)
+                    schedules = try JSONDecoder().decode([Schedule].self, from: data)
+                } catch {
+                    print("Fetch failed: \(error)")
+                }
             }
-        }
 
-        let entry = CalendarEntry(date: currentDate, schedules: schedules, displayMonth: displayMonth)
-        let nextUpdate = Calendar.current.date(byAdding: .hour, value: 1, to: currentDate)!
-        return Timeline(entries: [entry], policy: .after(nextUpdate))
+            let entry = CalendarEntry(date: Date(), schedules: schedules)
+            let nextUpdate = Calendar.current.date(byAdding: .hour, value: 1, to: Date())!
+            let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
+            completion(timeline)
+        }
     }
 }
 
-// MARK: - 3. Interactive Intent
-import AppIntents
-
-struct ChangeMonthIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Change Month"
-    @Parameter(title: "Month Offset", default: 0)
-    var monthOffset: Int
-    init() {}
-    init(offset: Int) { self.monthOffset = offset }
-}
-
-// MARK: - 4. Widget View
+// MARK: - 3. Widget View
 struct CalendarWidgetEntryView : View {
     var entry: Provider.Entry
     let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
@@ -78,23 +66,24 @@ struct CalendarWidgetEntryView : View {
     
     var body: some View {
         VStack(spacing: 0) {
+            // Header
             HStack {
-                Button(intent: ChangeMonthIntent(offset: -1)) { Image(systemName: "chevron.left") }
+                Text(monthTitle(entry.date))
+                    .font(.system(size: 16, weight: .bold))
                 Spacer()
-                Text(monthTitle(entry.displayMonth)).font(.system(size: 16, weight: .bold))
-                Spacer()
-                Button(intent: ChangeMonthIntent(offset: 1)) { Image(systemName: "chevron.right") }
             }
-            .padding(.bottom, 8).tint(.primary)
+            .padding(.bottom, 8)
             
+            // Weekdays
             LazyVGrid(columns: columns, spacing: 0) {
                 ForEach(days, id: \.self) { day in
                     Text(day).font(.caption2).foregroundColor(.gray)
                 }
             }
             
+            // Grid
             LazyVGrid(columns: columns, spacing: 2) {
-                ForEach(generateDays(for: entry.displayMonth), id: \.self) { date in
+                ForEach(generateDays(for: entry.date), id: \.self) { date in
                     if let date = date {
                         VStack(spacing: 2) {
                             Text("\(Calendar.current.component(.day, from: date))")
@@ -115,7 +104,8 @@ struct CalendarWidgetEntryView : View {
                 }
             }
         }
-        .padding().containerBackground(for: .widget) { Color.white }
+        .padding()
+        .applyContainerBackground() // Use helper for iOS 16/17 compatibility
     }
     
     func monthTitle(_ date: Date) -> String {
@@ -123,14 +113,15 @@ struct CalendarWidgetEntryView : View {
         return formatter.string(from: date)
     }
     
-    func generateDays(for month: Date) -> [Date?] {
+    func generateDays(for date: Date) -> [Date?] {
         let calendar = Calendar.current
-        let range = calendar.range(of: .day, in: .month, for: month)!
-        let firstDayOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: month))!
-        let firstWeekday = calendar.component(.weekday, from: firstDayOfMonth)
+        let components = calendar.dateComponents([.year, .month], from: date)
+        let firstDay = calendar.date(from: components)!
+        let range = calendar.range(of: .day, in: .month, for: firstDay)!
+        let firstWeekday = calendar.component(.weekday, from: firstDay)
         var days: [Date?] = Array(repeating: nil, count: firstWeekday - 1)
         for i in 0..<range.count {
-            if let date = calendar.date(byAdding: .day, value: i, to: firstDayOfMonth) { days.append(date) }
+            if let date = calendar.date(byAdding: .day, value: i, to: firstDay) { days.append(date) }
         }
         return days
     }
@@ -142,14 +133,26 @@ struct CalendarWidgetEntryView : View {
     }
 }
 
+// Helper for iOS 17 vs older background
+extension View {
+    func applyContainerBackground() -> some View {
+        if #available(iOS 17.0, *) {
+            return self.containerBackground(for: .widget) { Color.white }
+        } else {
+            return self.background(Color.white)
+        }
+    }
+}
+
 @main
 struct CalendarWidget: Widget {
     let kind: String = "CalendarWidget"
     var body: some WidgetConfiguration {
-        AppIntentConfiguration(kind: kind, intent: ChangeMonthIntent.self, provider: Provider()) { entry in
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
             CalendarWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Dangmoo Calendar")
+        .description("View your monthly schedules.")
         .supportedFamilies([.systemLarge])
     }
 }
