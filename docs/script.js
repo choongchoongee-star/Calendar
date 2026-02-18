@@ -99,40 +99,47 @@ const DataManager = {
             // 1. Native Apple Sign-In (iOS)
             if (provider === 'apple' && 
                 window.Capacitor && 
-                window.Capacitor.isNativePlatform() && 
-                window.Capacitor.Plugins.SignInWithApple) {
+                window.Capacitor.isNativePlatform()) {
                 
-                console.log("Attempting native Apple Sign-In...");
-                try {
-                    const rawNonce = generateNonce();
-                    const hashedNonce = await sha256(rawNonce);
+                const AppleSignIn = window.Capacitor.Plugins.SignInWithApple;
+                if (AppleSignIn) {
+                    console.log("Attempting native Apple Sign-In via @capacitor-community/apple-sign-in...");
+                    try {
+                        const rawNonce = generateNonce();
+                        const hashedNonce = await sha256(rawNonce);
 
-                    const result = await window.Capacitor.Plugins.SignInWithApple.authorize({
-                        clientId: 'com.dangmoo.calendar', // Ensure this matches your App ID
-                        scopes: 'email name',
-                        redirectURI: 'https://rztrkeejliampmzcqbmx.supabase.co/auth/v1/callback', // Supabase Callback URL
-                        nonce: hashedNonce
-                    });
-
-                    if (result.response && result.response.identityToken) {
-                        const { data, error } = await this.client.auth.signInWithIdToken({
-                            provider: 'apple',
-                            token: result.response.identityToken,
-                            nonce: rawNonce, 
+                        const result = await AppleSignIn.authorize({
+                            clientId: 'com.dangmoo.calendar',
+                            scopes: 'email name',
+                            redirectURI: 'https://rztrkeejliampmzcqbmx.supabase.co/auth/v1/callback',
+                            nonce: hashedNonce
                         });
-                        if (error) throw error;
-                        console.log("Native Apple Sign-In successful");
-                        
-                        // Update session and UI manually to prevent reload race conditions
-                        this.session = data.session;
-                        document.getElementById('login-modal').style.display = 'none';
-                        document.getElementById('app').style.filter = 'none';
-                        if (window.initializeCalendar) window.initializeCalendar();
-                        return;
+
+                        console.log("Apple Sign-In authorization result received");
+
+                        if (result.response && result.response.identityToken) {
+                            const { data, error } = await this.client.auth.signInWithIdToken({
+                                provider: 'apple',
+                                token: result.response.identityToken,
+                                nonce: rawNonce, 
+                            });
+                            if (error) throw error;
+                            console.log("Native Apple Sign-In successful, session established");
+                            
+                            this.session = data.session;
+                            document.getElementById('login-modal').style.display = 'none';
+                            document.getElementById('app').style.filter = 'none';
+                            if (window.initializeCalendar) window.initializeCalendar();
+                            return;
+                        } else {
+                            throw new Error("No identity token received from Apple");
+                        }
+                    } catch (nativeError) {
+                        console.error("Native Apple Sign-In error:", nativeError);
+                        // Fallthrough to web login if native fails
                     }
-                } catch (nativeError) {
-                    console.warn("Native Apple Sign-In failed, falling back to web:", nativeError);
-                    // Fallthrough to web login if native fails (or user cancels)
+                } else {
+                    console.warn("SignInWithApple plugin not found in Capacitor Plugins.");
                 }
             }
 
