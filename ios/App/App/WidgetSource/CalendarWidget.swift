@@ -78,6 +78,7 @@ struct CalendarWidgetEntryView : View {
             let todayEvents = entry.schedules.filter { $0.start_date <= todayStr && $0.end_date >= todayStr }
             Text(todayEvents.isEmpty ? "일정 없음" : "\(todayEvents.count)개의 일정").font(.system(size: 12))
         }
+        .widgetURL(URL(string: "vibe://date/\(formatDate(entry.date))"))
     }
 
     var monthlyGrid: some View {
@@ -111,6 +112,7 @@ struct CalendarWidgetEntryView : View {
         }
         .frame(maxWidth: .infinity).frame(height: 30)
         .background(Color.gray.opacity(0.05)).cornerRadius(4)
+        .widgetURL(URL(string: "vibe://date/\(formatDate(date))"))
     }
 
     func monthTitle(_ date: Date) -> String {
