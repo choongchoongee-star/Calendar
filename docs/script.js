@@ -1239,5 +1239,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
 
         loadCalendars(); // Start the chain
+
+        // --- Deep Linking Support (Widget -> App) ---
+        window.handleDeepLink = async (urlStr) => {
+            console.log("Handling Deep Link:", urlStr);
+            try {
+                const url = new URL(urlStr);
+                if (url.protocol === 'vibe:' && url.host === 'date') {
+                    const dateStr = url.pathname.replace('/', ''); // format: YYYY-MM-DD
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                        const targetDate = new Date(dateStr + 'T00:00:00');
+                        currentDate = targetDate;
+                        renderCalendar();
+                        openScheduleListModal(dateStr);
+                    }
+                }
+            } catch (e) {
+                console.error("Deep Link Error:", e);
+            }
+        };
+
+        if (window.Capacitor) {
+            window.Capacitor.Plugins.App.addListener('appUrlOpen', (data) => {
+                window.handleDeepLink(data.url);
+            });
+        }
     }
 });
