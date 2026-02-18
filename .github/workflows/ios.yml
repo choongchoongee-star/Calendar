@@ -29,8 +29,8 @@ jobs:
 
       - name: Sync Capacitor
         run: |
-          # Use npx explicitly with the current node environment
-          npx cap sync ios
+          # Run the local capacitor binary directly using the current node environment
+          node ./node_modules/.bin/cap sync ios --verbose
 
       - name: Install the Apple Certificate and Provisioning Profile
         env:
