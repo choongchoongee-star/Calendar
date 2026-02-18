@@ -75,7 +75,6 @@ struct CalendarWidgetEntryView : View {
                     }
                 }
             } else {
-                // Monthly Grid for Medium/Large
                 VStack(spacing: 0) {
                     HStack {
                         Text(monthTitle(entry.date)).font(.system(size: 16, weight: .bold))
@@ -145,12 +144,6 @@ extension View {
 
 // MARK: - Entry Point
 @main
-struct CalendarWidgetBundle: WidgetBundle {
-    var body: some Widget {
-        CalendarWidget()
-    }
-}
-
 struct CalendarWidget: Widget {
     let kind: String = "CalendarWidget"
     var body: some WidgetConfiguration {
