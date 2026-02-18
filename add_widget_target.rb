@@ -3,20 +3,28 @@ require 'xcodeproj'
 project_path = 'ios/App/App.xcodeproj'
 project = Xcodeproj::Project.open(project_path)
 
-# 1. Targets
+# 1. Target Configuration
 app_target = project.targets.find { |t| t.name == 'App' }
 target_name = 'CalendarWidget'
 bundle_id = 'com.dangmoo.calendar.widget'
 
-# Fresh start for the widget
+# Cleanup existing
 project.targets.select { |t| t.name == target_name }.each(&:remove_from_project)
 widget_target = project.new_target(:app_extension, target_name, :ios, '16.0')
 widget_target.product_name = target_name
 
-# 2. Versioning
-m_version = app_target.build_configurations.first.build_settings['MARKETING_VERSION'] || '1.0.0'
+# 2. Ensure Product is in the "Products" group
+products_group = project.main_group['Products'] || project.main_group.new_group('Products')
+unless products_group.children.include?(widget_target.product_reference)
+  products_group.children << widget_target.product_reference
+end
 
-# 3. Settings
+# 3. Versioning & Architecture Sync
+app_config = app_target.build_configurations.first
+m_version = app_config.build_settings['MARKETING_VERSION'] || '1.0.0'
+archs = app_config.build_settings['ARCHS'] || '$(ARCHS_STANDARD)'
+
+# 4. Settings Loop
 [app_target, widget_target].each do |target|
   target.build_configurations.each do |config|
     config.build_settings['DEVELOPMENT_TEAM'] = 'XLFLVNJU9Q'
@@ -25,11 +33,12 @@ m_version = app_target.build_configurations.first.build_settings['MARKETING_VERS
     config.build_settings['MARKETING_VERSION'] = m_version
     config.build_settings['SWIFT_VERSION'] = '5.0'
     config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
+    config.build_settings['ARCHS'] = archs
+    config.build_settings['ONLY_ACTIVE_ARCH'] = 'NO'
     
     if target.name == 'App'
       config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = 'Calendar'
       config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'App/App.entitlements'
-      config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'YES'
     else
       config.build_settings['PRODUCT_NAME'] = target_name
       config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = bundle_id
@@ -37,42 +46,40 @@ m_version = app_target.build_configurations.first.build_settings['MARKETING_VERS
       config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'App/WidgetSource/CalendarWidget.entitlements'
       config.build_settings['GENERATE_INFOPLIST_FILE'] = 'YES'
       config.build_settings['INFOPLIST_KEY_NSExtensionPointIdentifier'] = 'com.apple.widgetkit-extension'
-      config.build_settings['INFOPLIST_KEY_CFBundleDisplayName'] = 'Dangmoo Widget'
+      config.build_settings['INFOPLIST_KEY_CFBundleDisplayName'] = '당무 캘린더'
       config.build_settings['ASSETCATALOG_COMPILER_APPICON_NAME'] = 'AppIcon'
       config.build_settings['SKIP_INSTALL'] = 'YES'
       config.build_settings['APPLICATION_EXTENSION_API_ONLY'] = 'YES'
+      config.build_settings['LD_RUNPATH_SEARCH_PATHS'] = '$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks'
     end
   end
 end
 
-# 4. Frameworks
+# 5. Linkages
 widget_target.add_system_frameworks(['WidgetKit', 'SwiftUI', 'Foundation'])
 
-# 5. File Mapping (Fixed Groups)
+# 6. File Mapping
 app_group = project.main_group['App']
 widget_group = app_group['WidgetSource'] || app_group.new_group('WidgetSource', 'WidgetSource')
 
-# ONLY remove source/entitlement refs, NOT product refs
-project.objects.select { |obj| obj.isa == 'PBXFileReference' && obj.path && (obj.path.end_with?('.swift') || obj.path.end_with?('.entitlements')) && obj.path.include?('Widget') }.each(&:remove_from_project)
-
+# Refresh source refs
+project.objects.select { |obj| obj.isa == 'PBXFileReference' && obj.path && obj.path.include?('CalendarWidget') }.each(&:remove_from_project)
 swift_ref = widget_group.new_file('CalendarWidget.swift')
-ent_ref = widget_group.new_file('CalendarWidget.entitlements')
-app_ent_ref = app_group.find_file_by_path('App.entitlements') || app_group.new_file('App.entitlements')
-
 widget_target.source_build_phase.add_file_reference(swift_ref)
 
-# Asset Linkage
+# Link Assets
 assets_ref = app_group.find_file_by_path('Assets.xcassets')
 widget_target.resources_build_phase.add_file_reference(assets_ref) if assets_ref
 
-# 6. Embedding
+# 7. Embedding
 app_target.copy_files_build_phases.select { |p| p.name == 'Embed App Extensions' }.each(&:remove_from_project)
 embed_phase = app_target.new_copy_files_build_phase('Embed App Extensions')
 embed_phase.symbol_dst_subfolder_spec = :plug_ins
-embed_phase.add_file_reference(widget_target.product_reference).settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
+build_file = embed_phase.add_file_reference(widget_target.product_reference)
+build_file.settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
 
-# 7. Final Dependency
-app_target.add_dependency(widget_target)
+# 8. Final Linkage
+app_target.add_dependency(widget_target) unless app_target.dependencies.find { |d| d.target && d.target.name == target_name }
 
 project.save
-puts "Surgical Discovery fix applied (Entitlements + Product Integrity)."
+puts "Successfully applied Final Integrity fix (Products Group + Architecture Sync)."
