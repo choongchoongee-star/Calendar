@@ -1245,13 +1245,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log("Handling Deep Link:", urlStr);
             try {
                 const url = new URL(urlStr);
-                if (url.protocol === 'vibe:' && url.host === 'date') {
-                    const dateStr = url.pathname.replace('/', ''); // format: YYYY-MM-DD
-                    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-                        const targetDate = new Date(dateStr + 'T00:00:00');
-                        currentDate = targetDate;
-                        renderCalendar();
-                        openScheduleListModal(dateStr);
+                if (url.protocol === 'vibe:') {
+                    if (url.host === 'date') {
+                        const dateStr = url.pathname.replace('/', ''); // format: YYYY-MM-DD
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                            const targetDate = new Date(dateStr + 'T00:00:00');
+                            currentDate = targetDate;
+                            renderCalendar();
+                            openScheduleListModal(dateStr);
+                        }
+                    } else if (url.host === 'add') {
+                        // Open add modal for today
+                        const todayStr = CalendarUtils.formatDate(new Date());
+                        openAddScheduleModal(todayStr);
                     }
                 }
             } catch (e) {

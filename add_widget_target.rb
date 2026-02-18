@@ -10,7 +10,7 @@ app_target = project.targets.find { |t| t.name == 'App' }
 
 # 2. Reset Target
 project.targets.select { |t| t.name == target_name }.each(&:remove_from_project)
-widget_target = project.new_target(:app_extension, target_name, :ios, '16.0')
+widget_target = project.new_target(:app_extension, target_name, :ios, '17.0')
 widget_target.product_name = target_name
 
 # 3. Add to Products Group (CRITICAL)
@@ -29,7 +29,7 @@ m_version = app_target.build_configurations.first.build_settings['MARKETING_VERS
     config.build_settings['CODE_SIGN_IDENTITY'] = 'Apple Distribution'
     config.build_settings['MARKETING_VERSION'] = m_version
     config.build_settings['SWIFT_VERSION'] = '5.0'
-    config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
+    config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '17.0'
     
     if target.name == 'App'
       config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = 'Calendar'
