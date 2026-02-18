@@ -21,6 +21,7 @@ end
 widget_target.product_name = target_name
 widget_target.build_configuration_list.set_setting('PRODUCT_NAME', target_name)
 widget_target.build_configuration_list.set_setting('PRODUCT_BUNDLE_IDENTIFIER', bundle_id)
+# Path relative to ios/App (Project Root)
 widget_target.build_configuration_list.set_setting('INFOPLIST_FILE', 'App/WidgetSource/Info.plist')
 widget_target.build_configuration_list.set_setting('SWIFT_VERSION', '5.0')
 widget_target.build_configuration_list.set_setting('CODE_SIGN_STYLE', 'Manual')
@@ -28,13 +29,18 @@ widget_target.build_configuration_list.set_setting('DEVELOPMENT_TEAM', 'XLFLVNJU
 widget_target.build_configuration_list.set_setting('PROVISIONING_PROFILE_SPECIFIER', 'Dangmoo Calendar Widget')
 widget_target.build_configuration_list.set_setting('GENERATE_INFOPLIST_FILE', 'YES')
 
-# 3. Ensure File is Linked
-widget_group = project.main_group.find_subpath('App/WidgetSource', true)
+# 3. Ensure File is Linked in Sources Phase
+# Find or create the group in App/WidgetSource (relative to project)
+app_group = project.main_group.find_subpath('App', false) || project.main_group.new_group('App')
+widget_group = app_group.find_subpath('WidgetSource', true)
+
+# Create file reference if missing
 file_ref = widget_group.find_file_by_path('CalendarWidget.swift') || widget_group.new_file('CalendarWidget.swift')
 
-# Clear existing and re-add to ensure it's in the Sources phase
-widget_target.source_build_phase.clear
-widget_target.add_file_references([file_ref])
+# Explicitly add to Sources Build Phase
+sources_phase = widget_target.source_build_phase
+sources_phase.clear
+sources_phase.add_file_reference(file_ref)
 
 # 4. Link with Main App
 if !app_target.dependencies.find { |d| d.target && d.target.name == target_name }
@@ -43,4 +49,4 @@ end
 
 # 5. Save
 project.save
-puts "Successfully updated project with targets and profile mapping!"
+puts "Successfully updated project with correct file paths and Sources phase!"
