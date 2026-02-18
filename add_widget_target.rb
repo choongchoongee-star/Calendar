@@ -39,9 +39,8 @@ m_version = app_target.build_configurations.first.build_settings['MARKETING_VERS
       config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = bundle_id
       config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = 'Dangmoo Calendar Widget'
       config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'App/WidgetSource/CalendarWidget.entitlements'
-      config.build_settings['GENERATE_INFOPLIST_FILE'] = 'YES'
-      config.build_settings['INFOPLIST_KEY_NSExtensionPointIdentifier'] = 'com.apple.widgetkit-extension'
-      config.build_settings['INFOPLIST_KEY_CFBundleDisplayName'] = '당무 캘린더'
+      config.build_settings['GENERATE_INFOPLIST_FILE'] = 'NO'
+      config.build_settings['INFOPLIST_FILE'] = 'App/WidgetSource/Info.plist'
       config.build_settings['SKIP_INSTALL'] = 'YES'
     end
   end
