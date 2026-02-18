@@ -76,6 +76,7 @@ jobs:
             -configuration Release \
             -archivePath $PWD/build/App.xcarchive \
             archive \
+            -allowProvisioningUpdates \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             CODE_SIGN_STYLE="Manual" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
