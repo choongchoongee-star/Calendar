@@ -19,7 +19,7 @@
   },
   "homepage": "https://github.com/choongchoongee-star/Calendar#readme",
   "dependencies": {
-    "@capacitor-community/apple-sign-in": "^7.1.0",
+    "@capacitor-community/apple-sign-in": "^8.0.0",
     "@capacitor/app": "^8.0.0",
     "@capacitor/cli": "^8.0.2",
     "@capacitor/core": "^8.0.2",
