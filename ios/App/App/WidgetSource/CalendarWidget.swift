@@ -18,7 +18,6 @@ struct Schedule: Decodable, Identifiable {
 struct CalendarEntry: TimelineEntry {
     let date: Date
     let schedules: [Schedule]
-    let isPreview: Bool
 }
 
 // MARK: - Provider
@@ -27,13 +26,11 @@ struct Provider: TimelineProvider {
     let supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6dHJrZWVqbGlhbXBtemNxYm14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDE4MTksImV4cCI6MjA4NDY3NzgxOX0.ind5OQoPfWuAd_StssdeIDlrKxotW3XPhGOV63NqUWY"
 
     func placeholder(in context: Context) -> CalendarEntry {
-        CalendarEntry(date: Date(), schedules: [], isPreview: true)
+        CalendarEntry(date: Date(), schedules: [])
     }
 
     func getSnapshot(in context: Context, completion: @escaping (CalendarEntry) -> ()) {
-        // CRITICAL: Return immediately with no network call for the gallery preview
-        let entry = CalendarEntry(date: Date(), schedules: [], isPreview: true)
-        completion(entry)
+        completion(CalendarEntry(date: Date(), schedules: []))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<CalendarEntry>) -> ()) {
@@ -41,7 +38,7 @@ struct Provider: TimelineProvider {
             var schedules: [Schedule] = []
             if let url = URL(string: supabaseUrl) {
                 var request = URLRequest(url: url)
-                request.timeoutInterval = 10 // Add timeout
+                request.timeoutInterval = 15
                 request.addValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
                 request.addValue(supabaseKey, forHTTPHeaderField: "apikey")
                 do {
@@ -49,37 +46,28 @@ struct Provider: TimelineProvider {
                     schedules = try JSONDecoder().decode([Schedule].self, from: data)
                 } catch { print("Fetch error: \(error)") }
             }
-            let entry = CalendarEntry(date: Date(), schedules: schedules, isPreview: false)
+            let entry = CalendarEntry(date: Date(), schedules: schedules)
             let nextUpdate = Calendar.current.date(byAdding: .hour, value: 1, to: Date())!
             completion(Timeline(entries: [entry], policy: .after(nextUpdate)))
         }
     }
 }
 
-// MARK: - View
+// MARK: - Main Monthly View
 struct CalendarWidgetEntryView : View {
     var entry: Provider.Entry
     @Environment(\.widgetFamily) var family
 
     var body: some View {
         VStack(spacing: 0) {
-            if entry.isPreview {
-                Text("일정을 불러오는 중...").font(.caption).foregroundColor(.gray)
+            if family == .systemSmall {
+                smallView
             } else {
-                content
+                monthlyGrid
             }
         }
         .padding()
         .applyContainerBackground()
-    }
-
-    @ViewBuilder
-    var content: some View {
-        if family == .systemSmall {
-            smallView
-        } else {
-            monthlyGrid
-        }
     }
 
     var smallView: some View {
@@ -149,23 +137,46 @@ struct CalendarWidgetEntryView : View {
     }
 }
 
-extension View {
-    func applyContainerBackground() -> some View {
-        if #available(iOS 17.0, *) { return self.containerBackground(for: .widget) { Color.white } }
-        else { return self.background(Color.white) }
+// MARK: - Simple Diagnostic Widget
+struct StatusWidget: Widget {
+    let kind: String = "StatusWidget"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            Text("당무 캘린더 활성화됨")
+                .font(.caption)
+                .applyContainerBackground()
+        }
+        .configurationDisplayName("상태 확인")
+        .description("위젯이 정상적으로 작동하는지 확인합니다.")
+        .supportedFamilies([.systemSmall])
     }
 }
 
+// MARK: - Widget Bundle (The Entry Point)
 @main
+struct CalendarWidgetBundle: WidgetBundle {
+    var body: some Widget {
+        CalendarWidget()
+        StatusWidget() // Added diagnostic widget
+    }
+}
+
 struct CalendarWidget: Widget {
     let kind: String = "CalendarWidget"
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: Provider()) { entry in
             CalendarWidgetEntryView(entry: entry)
         }
-        .configurationDisplayName("Dangmoo Calendar")
+        .configurationDisplayName("당무 캘린더")
         .description("내 일정을 한눈에 확인하세요.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+    }
+}
+
+extension View {
+    func applyContainerBackground() -> some View {
+        if #available(iOS 17.0, *) { return self.containerBackground(for: .widget) { Color.white } }
+        else { return self.background(Color.white) }
     }
 }
 
