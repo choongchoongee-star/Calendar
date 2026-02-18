@@ -20,6 +20,8 @@
 	<dict>
 		<key>com.dangmoo.calendar</key>
 		<string>Calendar</string>
+		<key>com.dangmoo.calendar.widget</key>
+		<string>Calendar</string>
 	</dict>
 </dict>
 </plist>
