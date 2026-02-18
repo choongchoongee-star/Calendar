@@ -35,7 +35,11 @@ const DataManager = {
         if (window.Capacitor && window.Capacitor.isNativePlatform()) {
             const WidgetBridge = window.Capacitor.Plugins.WidgetBridge;
             if (WidgetBridge) {
-                WidgetBridge.setSelectedCalendar({ calendarId: this.currentCalendarId || "" });
+                // Send current selection AND the full list for the configuration menu
+                WidgetBridge.setSelectedCalendar({ 
+                    calendarId: this.currentCalendarId || "",
+                    calendars: this.calendars.map(c => ({ id: c.id, title: c.title }))
+                });
             }
         }
     },
