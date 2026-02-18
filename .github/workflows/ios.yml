@@ -68,7 +68,9 @@ jobs:
             -archivePath $PWD/build/App.xcarchive \
             archive \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            CODE_SIGN_STYLE="Manual"
+            CODE_SIGN_STYLE="Manual" \
+            DEVELOPMENT_TEAM="XLFLVNJU9Q" \
+            PROVISIONING_PROFILE_SPECIFIER="Calendar"
 
           xcodebuild -exportArchive \
             -archivePath $PWD/build/App.xcarchive \
