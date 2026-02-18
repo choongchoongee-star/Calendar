@@ -57,6 +57,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>com.dangmoo.calendar</string>
+				<string>vibe</string>
 			</array>
 		</dict>
 	</array>
