@@ -13,6 +13,7 @@ widget_target = project.targets.find { |t| t.name == target_name } || project.ne
 # 2. Critical Build Settings
 app_target.build_configuration_list.set_setting('PRODUCT_NAME', 'App')
 app_target.build_configuration_list.set_setting('PROVISIONING_PROFILE_SPECIFIER', 'Calendar')
+app_target.build_configuration_list.set_setting('ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES', 'YES')
 
 widget_target.product_name = target_name
 widget_target.build_configuration_list.set_setting('PRODUCT_NAME', target_name)
@@ -21,6 +22,8 @@ widget_target.build_configuration_list.set_setting('PROVISIONING_PROFILE_SPECIFI
 widget_target.build_configuration_list.set_setting('INFOPLIST_FILE', 'App/WidgetSource/Info.plist')
 widget_target.build_configuration_list.set_setting('GENERATE_INFOPLIST_FILE', 'YES')
 widget_target.build_configuration_list.set_setting('SWIFT_VERSION', '5.0')
+widget_target.build_configuration_list.set_setting('SKIP_INSTALL', 'YES') # Extensions should not be installed separately
+widget_target.build_configuration_list.set_setting('APPLICATION_EXTENSION_API_ONLY', 'YES')
 
 [app_target, widget_target].each do |t|
   t.build_configuration_list.set_setting('DEVELOPMENT_TEAM', 'XLFLVNJU9Q')
