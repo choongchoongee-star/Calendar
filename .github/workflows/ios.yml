@@ -5,7 +5,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-15 # Explicitly use macOS 15 which has better Node 22 support
 
     steps:
       - name: Checkout repository
@@ -14,34 +14,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
-          # 캐시를 일시적으로 비활성화하여 깨끗한 환경에서 시작합니다.
+          node-version: '22'
+          cache: 'npm'
 
-      - name: Verify Node Version
+      - name: Verify Environment
         run: |
-          NODE_VER=$(node -v)
-          echo "Current Node Version: $NODE_VER"
-          if [[ $NODE_VER != v22* ]]; then
-            echo "❌ ERROR: Node version is not 22! Current: $NODE_VER"
-            exit 1
-          fi
-
-      - name: Verify Secrets
-        run: |
-          echo "Checking if all required secrets are set..."
-          MISSING=0
-          if [ -z "${{ secrets.BUILD_CERTIFICATE_BASE64 }}" ]; then echo "❌ BUILD_CERTIFICATE_BASE64 is missing"; MISSING=1; fi
-          if [ -z "${{ secrets.P12_PASSWORD }}" ]; then echo "❌ P12_PASSWORD is missing"; MISSING=1; fi
-          if [ -z "${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}" ]; then echo "❌ BUILD_PROVISION_PROFILE_BASE64 is missing"; MISSING=1; fi
-          if [ -z "${{ secrets.KEYCHAIN_PASSWORD }}" ]; then echo "❌ KEYCHAIN_PASSWORD is missing"; MISSING=1; fi
-          if [ -z "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" ]; then echo "❌ APP_STORE_CONNECT_ISSUER_ID is missing"; MISSING=1; fi
-          if [ -z "${{ secrets.APP_STORE_CONNECT_KEY_ID }}" ]; then echo "❌ APP_STORE_CONNECT_KEY_ID is missing"; MISSING=1; fi
-          if [ -z "${{ secrets.APP_STORE_CONNECT_API_KEY }}" ]; then echo "❌ APP_STORE_CONNECT_API_KEY is missing"; MISSING=1; fi
-          
-          if [ $MISSING -eq 1 ]; then
-            echo "Error: Required secrets are missing."
-            exit 1
-          fi
+          echo "Node version: $(node -v)"
+          echo "NPM version: $(npm -v)"
+          node -e "if (parseInt(process.versions.node.split('.')[0]) < 22) process.exit(1)"
 
       - name: Install dependencies
         run: |
@@ -49,8 +29,8 @@ jobs:
 
       - name: Sync Capacitor
         run: |
-          # npx 대신 로컬 bin 폴더의 명령어를 직접 실행하여 현재 Node 환경을 강제합니다.
-          ./node_modules/.bin/cap sync ios --verbose
+          # Use npx explicitly with the current node environment
+          npx cap sync ios
 
       - name: Install the Apple Certificate and Provisioning Profile
         env:
@@ -79,8 +59,6 @@ jobs:
       - name: Build and Archive (IPA)
         run: |
           cd ios
-          # xcodebuild 실행 시에도 명시적으로 환경을 확인합니다.
-          node -v
           xcodebuild -workspace App/App.xcworkspace \
             -scheme App \
             -sdk iphoneos \

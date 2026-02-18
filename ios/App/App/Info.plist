@@ -2,12 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CAPACITOR_DEBUG</key>
-	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>en</string>
-		<key>CFBundleDisplayName</key>
-		<string>Calendar</string>	<key>CFBundleExecutable</key>
+	<string>ko</string>
+	<key>CFBundleDisplayName</key>
+	<string>Dangmoo Calendar</string>
+	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
@@ -46,5 +45,18 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.dangmoo.calendar</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.dangmoo.calendar</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
