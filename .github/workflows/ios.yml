@@ -54,7 +54,14 @@ jobs:
       - name: Build and Archive (IPA)
         run: |
           cd ios
-          xcodebuild -workspace App/App.xcworkspace \
+          xcodebuild -project App/App.xcodeproj \
+            -scheme App \
+            -sdk iphoneos \
+            -configuration Release \
+            -archivePath $PWD/build/App.xcarchive \
+            -resolvePackageDependencies
+          
+          xcodebuild -project App/App.xcodeproj \
             -scheme App \
             -sdk iphoneos \
             -configuration Release \
