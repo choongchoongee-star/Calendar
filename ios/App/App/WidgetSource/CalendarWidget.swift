@@ -18,6 +18,7 @@ struct Schedule: Decodable, Identifiable {
 struct CalendarEntry: TimelineEntry {
     let date: Date
     let schedules: [Schedule]
+    let isPreview: Bool
 }
 
 // MARK: - Provider
@@ -26,11 +27,13 @@ struct Provider: TimelineProvider {
     let supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6dHJrZWVqbGlhbXBtemNxYm14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDE4MTksImV4cCI6MjA4NDY3NzgxOX0.ind5OQoPfWuAd_StssdeIDlrKxotW3XPhGOV63NqUWY"
 
     func placeholder(in context: Context) -> CalendarEntry {
-        CalendarEntry(date: Date(), schedules: [])
+        CalendarEntry(date: Date(), schedules: [], isPreview: true)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (CalendarEntry) -> ()) {
-        completion(CalendarEntry(date: Date(), schedules: []))
+        // CRITICAL: Return immediately with no network call for the gallery preview
+        let entry = CalendarEntry(date: Date(), schedules: [], isPreview: true)
+        completion(entry)
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<CalendarEntry>) -> ()) {
@@ -38,6 +41,7 @@ struct Provider: TimelineProvider {
             var schedules: [Schedule] = []
             if let url = URL(string: supabaseUrl) {
                 var request = URLRequest(url: url)
+                request.timeoutInterval = 10 // Add timeout
                 request.addValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
                 request.addValue(supabaseKey, forHTTPHeaderField: "apikey")
                 do {
@@ -45,7 +49,7 @@ struct Provider: TimelineProvider {
                     schedules = try JSONDecoder().decode([Schedule].self, from: data)
                 } catch { print("Fetch error: \(error)") }
             }
-            let entry = CalendarEntry(date: Date(), schedules: schedules)
+            let entry = CalendarEntry(date: Date(), schedules: schedules, isPreview: false)
             let nextUpdate = Calendar.current.date(byAdding: .hour, value: 1, to: Date())!
             completion(Timeline(entries: [entry], policy: .after(nextUpdate)))
         }
@@ -58,42 +62,52 @@ struct CalendarWidgetEntryView : View {
     @Environment(\.widgetFamily) var family
 
     var body: some View {
-        Group {
-            if family == .systemSmall {
-                VStack(alignment: .leading) {
-                    Text(entry.date, format: .dateTime.day().month())
-                        .font(.headline)
-                    Text("오늘의 일정")
-                        .font(.caption).foregroundColor(.gray)
-                    Spacer()
-                    let todayStr = formatDate(entry.date)
-                    let todayEvents = entry.schedules.filter { $0.start_date <= todayStr && $0.end_date >= todayStr }
-                    if todayEvents.isEmpty {
-                        Text("일정 없음").font(.system(size: 10))
-                    } else {
-                        Text("\(todayEvents.count)개의 일정").font(.system(size: 10))
-                    }
-                }
+        VStack(spacing: 0) {
+            if entry.isPreview {
+                Text("일정을 불러오는 중...").font(.caption).foregroundColor(.gray)
             } else {
-                VStack(spacing: 0) {
-                    HStack {
-                        Text(monthTitle(entry.date)).font(.system(size: 16, weight: .bold))
-                        Spacer()
-                    }.padding(.bottom, 8)
-                    
-                    let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
-                    LazyVGrid(columns: columns, spacing: 2) {
-                        ForEach(generateDays(for: entry.date), id: \.self) { date in
-                            if let date = date {
-                                dateCell(date)
-                            } else { Color.clear.frame(height: 30) }
-                        }
-                    }
-                }
+                content
             }
         }
         .padding()
         .applyContainerBackground()
+    }
+
+    @ViewBuilder
+    var content: some View {
+        if family == .systemSmall {
+            smallView
+        } else {
+            monthlyGrid
+        }
+    }
+
+    var smallView: some View {
+        VStack(alignment: .leading) {
+            Text(entry.date, format: .dateTime.day().month()).font(.headline)
+            Spacer()
+            let todayStr = formatDate(entry.date)
+            let todayEvents = entry.schedules.filter { $0.start_date <= todayStr && $0.end_date >= todayStr }
+            Text(todayEvents.isEmpty ? "일정 없음" : "\(todayEvents.count)개의 일정").font(.system(size: 12))
+        }
+    }
+
+    var monthlyGrid: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(monthTitle(entry.date)).font(.system(size: 16, weight: .bold))
+                Spacer()
+            }.padding(.bottom, 8)
+            
+            let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
+            LazyVGrid(columns: columns, spacing: 2) {
+                ForEach(generateDays(for: entry.date), id: \.self) { date in
+                    if let date = date {
+                        dateCell(date)
+                    } else { Color.clear.frame(height: 30) }
+                }
+            }
+        }
     }
 
     func dateCell(_ date: Date) -> some View {
@@ -142,7 +156,6 @@ extension View {
     }
 }
 
-// MARK: - Entry Point
 @main
 struct CalendarWidget: Widget {
     let kind: String = "CalendarWidget"
@@ -156,7 +169,6 @@ struct CalendarWidget: Widget {
     }
 }
 
-// Color Helper
 extension Color {
     init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
