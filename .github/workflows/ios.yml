@@ -70,7 +70,8 @@ jobs:
             CODE_SIGN_IDENTITY="Apple Distribution" \
             CODE_SIGN_STYLE="Manual" \
             DEVELOPMENT_TEAM="XLFLVNJU9Q" \
-            PROVISIONING_PROFILE_SPECIFIER="Calendar"
+            PROVISIONING_PROFILE_SPECIFIER="Calendar" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }}
 
           xcodebuild -exportArchive \
             -archivePath $PWD/build/App.xcarchive \
