@@ -4,7 +4,8 @@
   "description": "A simple, responsive, and modern web-based monthly schedule service built with only HTML, CSS, and JavaScript. This project provides a full-month calendar view where users can add and delete schedule items. All data is saved to the browser's localStorage, so your schedules persist after a page refresh.",
   "main": "script.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "sed -i '' 's/import Capacitor/import Capacitor\\nimport Foundation/' node_modules/@capacitor-community/apple-sign-in/ios/Sources/SignInWithApple/Plugin.swift || true"
   },
   "repository": {
     "type": "git",
