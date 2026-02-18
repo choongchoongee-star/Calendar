@@ -5,12 +5,21 @@ import Capacitor
 public class WidgetBridge: CAPPlugin {
     @objc func setSelectedCalendar(_ call: CAPPluginCall) {
         let calendarId = call.getString("calendarId") ?? ""
-        let calendars = call.getArray("calendars", [String: String].self) ?? []
+        let calendars = call.getArray("calendars") ?? []
         let appGroup = "group.com.dangmoo.calendar"
         
         if let defaults = UserDefaults(suiteName: appGroup) {
             defaults.set(calendarId, forKey: "selectedCalendarId")
-            defaults.set(calendars, forKey: "allCalendars")
+            
+            // Explicitly cast to [[String: String]] to ensure Property List compatibility
+            let sanitizedCalendars = calendars.compactMap { item -> [String: String]? in
+                guard let dict = item as? [String: Any],
+                      let id = dict["id"] as? String,
+                      let title = dict["title"] as? String else { return nil }
+                return ["id": id, "title": title]
+            }
+            
+            defaults.set(sanitizedCalendars, forKey: "allCalendars")
             defaults.synchronize()
             call.resolve()
         } else {
