@@ -27,19 +27,27 @@ jobs:
         run: |
           npx cap sync ios
 
-      - name: Install the Apple Certificate and Provisioning Profile
+      - name: Setup Ruby and Xcodeproj
+        run: |
+          sudo gem install xcodeproj
+          ruby add_widget_target.rb
+
+      - name: Install Apple Certificates and Profiles
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
           P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          WIDGET_PROVISION_PROFILE_BASE64: ${{ secrets.WIDGET_PROVISION_PROFILE_BASE64 }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
-          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          APP_PP_PATH=$RUNNER_TEMP/app.mobileprovision
+          WIDGET_PP_PATH=$RUNNER_TEMP/widget.mobileprovision
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
 
           echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
-          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $APP_PP_PATH
+          echo -n "$WIDGET_PROVISION_PROFILE_BASE64" | base64 --decode -o $WIDGET_PP_PATH
 
           security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
@@ -49,7 +57,8 @@ jobs:
           security list-keychain -d user -s $KEYCHAIN_PATH
 
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $APP_PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/App.mobileprovision
+          cp $WIDGET_PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/Widget.mobileprovision
 
       - name: Build and Archive (IPA)
         run: |
@@ -71,7 +80,8 @@ jobs:
             CODE_SIGN_STYLE="Manual" \
             DEVELOPMENT_TEAM="XLFLVNJU9Q" \
             PROVISIONING_PROFILE_SPECIFIER="Calendar" \
-            CURRENT_PROJECT_VERSION=${{ github.run_number }}
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/app-signing.keychain-db"
 
           xcodebuild -exportArchive \
             -archivePath $PWD/build/App.xcarchive \
