@@ -27,9 +27,11 @@ struct WidgetConstants {
     }
     
     static func getAllCalendars() -> [CalendarEntity] {
-        let raw = UserDefaults(suiteName: appGroup)?.array(forKey: allCalendarsKey) as? [[String: String]] ?? []
-        return raw.compactMap { dict in
-            guard let id = dict["id"], let title = dict["title"] else { return nil }
+        guard let raw = UserDefaults(suiteName: appGroup)?.array(forKey: allCalendarsKey) else { return [] }
+        return raw.compactMap { item in
+            guard let dict = item as? [String: String],
+                  let id = dict["id"],
+                  let title = dict["title"] else { return nil }
             return CalendarEntity(id: id, title: title)
         }
     }
@@ -37,10 +39,10 @@ struct WidgetConstants {
 
 // MARK: - 2. App Entities for Configuration
 struct CalendarEntity: AppEntity, Identifiable {
-    let id: String
-    let title: String
+    var id: String
+    var title: String
     
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "캘린더"
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Calendar"
     static var defaultQuery = CalendarQuery()
     
     var displayRepresentation: DisplayRepresentation {
@@ -49,7 +51,7 @@ struct CalendarEntity: AppEntity, Identifiable {
 }
 
 struct CalendarQuery: EntityQuery {
-    func entities(for identifiers: [CalendarEntity.ID]) async throws -> [CalendarEntity] {
+    func entities(for identifiers: [String]) async throws -> [CalendarEntity] {
         WidgetConstants.getAllCalendars().filter { identifiers.contains($0.id) }
     }
     
@@ -57,8 +59,12 @@ struct CalendarQuery: EntityQuery {
         WidgetConstants.getAllCalendars()
     }
     
+    // Some versions of iOS prefer this explicit method for re-hydrating selection
+    func entity(for identifier: String) async throws -> CalendarEntity? {
+        WidgetConstants.getAllCalendars().first { $0.id == identifier }
+    }
+    
     func defaultResult() async -> CalendarEntity? {
-        // Default to the first one or the most recent one
         let all = WidgetConstants.getAllCalendars()
         let recentId = WidgetConstants.getRecentCalendarId()
         return all.first { $0.id == recentId } ?? all.first
@@ -140,8 +146,6 @@ struct Provider: AppIntentTimelineProvider {
         let offset = WidgetConstants.getOffset()
         let displayMonth = Calendar.current.date(byAdding: .month, value: offset, to: currentDate) ?? currentDate
         
-        // 1. Determine which calendar to show
-        // Priority: Explicit configuration > Recently viewed fallback
         let targetCalendar = configuration.calendar ?? {
             let recentId = WidgetConstants.getRecentCalendarId()
             return WidgetConstants.getAllCalendars().first { $0.id == recentId }
@@ -231,7 +235,6 @@ struct CalendarWidgetEntryView : View {
 
     var fullGridView: some View {
         VStack(spacing: 0) {
-            // -- Header --
             HStack {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(monthAbbr(entry.displayMonth))
