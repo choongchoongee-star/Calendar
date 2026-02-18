@@ -8,7 +8,7 @@ import SwiftUI
 
 // MARK: - 1. Data Models
 struct Schedule: Decodable, Identifiable {
-    let id: Int
+    let id: String // Changed from Int to String to match Supabase UUIDs
     let text: String
     let start_date: String
     let end_date: String
