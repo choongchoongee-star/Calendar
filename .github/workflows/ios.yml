@@ -87,6 +87,21 @@ jobs:
             -exportOptionsPlist App/App/exportOptions.plist \
             -exportPath $PWD/build
 
+      - name: Verify Bundle Contents
+        run: |
+          echo "--- Verifying IPA Contents ---"
+          mkdir -p $PWD/verify
+          unzip -q ios/build/App.ipa -d $PWD/verify
+          APP_PATH=$(find $PWD/verify/Payload -name "*.app" -maxdepth 1)
+          echo "App found at: $APP_PATH"
+          if [ -d "$APP_PATH/PlugIns" ]; then
+            echo "✅ PlugIns directory found!"
+            ls -R "$APP_PATH/PlugIns"
+          else
+            echo "❌ ERROR: PlugIns directory (Widgets) is MISSING from the IPA!"
+            exit 1
+          fi
+
       - name: Upload to App Store Connect
         uses: apple-actions/upload-testflight-build@v1
         with:
