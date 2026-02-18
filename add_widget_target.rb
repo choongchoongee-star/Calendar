@@ -3,21 +3,20 @@ require 'xcodeproj'
 project_path = 'ios/App/App.xcodeproj'
 project = Xcodeproj::Project.open(project_path)
 
-# 1. Configuration
+# 1. Target Configuration
 app_target = project.targets.find { |t| t.name == 'App' }
 target_name = 'CalendarWidget'
 bundle_id = 'com.dangmoo.calendar.widget'
 
-# Cleanup existing
+# Fresh start for the widget target
 project.targets.select { |t| t.name == target_name }.each(&:remove_from_project)
 widget_target = project.new_target(:app_extension, target_name, :ios, '16.0')
 widget_target.product_name = target_name
 
-# 2. Extract Versioning
-app_config = app_target.build_configurations.first
-m_version = app_config.build_settings['MARKETING_VERSION'] || '1.0.0'
+# 2. Versioning
+m_version = app_target.build_configurations.first.build_settings['MARKETING_VERSION'] || '1.0.0'
 
-# 3. Force Settings Loop
+# 3. Comprehensive Build Settings
 [app_target, widget_target].each do |target|
   target.build_configurations.each do |config|
     config.build_settings['DEVELOPMENT_TEAM'] = 'XLFLVNJU9Q'
@@ -35,14 +34,16 @@ m_version = app_config.build_settings['MARKETING_VERSION'] || '1.0.0'
       config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = bundle_id
       config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = 'Dangmoo Calendar Widget'
       config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'App/WidgetSource/CalendarWidget.entitlements'
+      
+      # CRITICAL: Switch to 100% Automated Plist Generation
+      config.build_settings.delete('INFOPLIST_FILE') # Remove manual file path
       config.build_settings['GENERATE_INFOPLIST_FILE'] = 'YES'
       config.build_settings['INFOPLIST_KEY_NSExtensionPointIdentifier'] = 'com.apple.widgetkit-extension'
       config.build_settings['INFOPLIST_KEY_CFBundleDisplayName'] = 'Dangmoo Widget'
       config.build_settings['ASSETCATALOG_COMPILER_APPICON_NAME'] = 'AppIcon'
+      
       config.build_settings['SKIP_INSTALL'] = 'YES'
       config.build_settings['APPLICATION_EXTENSION_API_ONLY'] = 'YES'
-      
-      # CRITICAL: Framework search paths for extensions
       config.build_settings['LD_RUNPATH_SEARCH_PATHS'] = '$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks'
     end
   end
@@ -51,26 +52,29 @@ end
 # 4. Frameworks
 widget_target.add_system_frameworks(['WidgetKit', 'SwiftUI', 'Foundation'])
 
-# 5. File Refs
+# 5. File Mapping
 app_group = project.main_group['App']
 widget_group = app_group['WidgetSource'] || app_group.new_group('WidgetSource', 'WidgetSource')
 
-project.objects.select { |obj| obj.isa == 'PBXFileReference' && obj.path && obj.path.include?('CalendarWidget') }.each(&:remove_from_project)
-
+# Refresh source reference
+project.objects.select { |obj| obj.isa == 'PBXFileReference' && obj.path && obj.path.include?('CalendarWidget.swift') }.each(&:remove_from_project)
 swift_ref = widget_group.new_file('CalendarWidget.swift')
-ent_ref = widget_group.new_file('CalendarWidget.entitlements')
-
 widget_target.source_build_phase.clear
 widget_target.add_file_references([swift_ref])
 
-# 6. Embedding
+# Link Assets
+assets_ref = app_group.find_file_by_path('Assets.xcassets')
+widget_target.resources_build_phase.add_file_reference(assets_ref) if assets_ref
+
+# 6. Embedding (Crucial for discovery)
 app_target.copy_files_build_phases.select { |p| p.name == 'Embed App Extensions' }.each(&:remove_from_project)
 embed_phase = app_target.new_copy_files_build_phase('Embed App Extensions')
 embed_phase.symbol_dst_subfolder_spec = :plug_ins
-embed_phase.add_file_reference(widget_target.product_reference).settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
+build_file = embed_phase.add_file_reference(widget_target.product_reference)
+build_file.settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
 
-# 7. Dependency
+# 7. Link Dependency
 app_target.add_dependency(widget_target)
 
 project.save
-puts "Total Discovery Fix applied successfully (Search Paths + Preview Snapshots)."
+puts "Successfully applied Ironclad Discovery fix (Automated Plist + Asset Linkage)."
