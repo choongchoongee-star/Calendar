@@ -5,7 +5,7 @@
   "main": "script.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "postinstall": "sed -i '' 's/import Capacitor/import Capacitor\\nimport Foundation/' node_modules/@capacitor-community/apple-sign-in/ios/Sources/SignInWithApple/Plugin.swift || true"
+    "postinstall": "node fix-plugin.js"
   },
   "repository": {
     "type": "git",
