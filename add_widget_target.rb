@@ -13,11 +13,11 @@ project.targets.select { |t| t.name == target_name }.each(&:remove_from_project)
 widget_target = project.new_target(:app_extension, target_name, :ios, '16.0')
 widget_target.product_name = target_name
 
-# 2. Version Sync
+# 2. Extract Versioning
 app_config = app_target.build_configurations.first
 m_version = app_config.build_settings['MARKETING_VERSION'] || '1.0.0'
 
-# 3. Settings Loop
+# 3. Force Settings Loop
 [app_target, widget_target].each do |target|
   target.build_configurations.each do |config|
     config.build_settings['DEVELOPMENT_TEAM'] = 'XLFLVNJU9Q'
@@ -41,12 +41,15 @@ m_version = app_config.build_settings['MARKETING_VERSION'] || '1.0.0'
       config.build_settings['ASSETCATALOG_COMPILER_APPICON_NAME'] = 'AppIcon'
       config.build_settings['SKIP_INSTALL'] = 'YES'
       config.build_settings['APPLICATION_EXTENSION_API_ONLY'] = 'YES'
+      
+      # CRITICAL: Framework search paths for extensions
+      config.build_settings['LD_RUNPATH_SEARCH_PATHS'] = '$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks'
     end
   end
 end
 
 # 4. Frameworks
-widget_target.add_system_frameworks(['WidgetKit', 'SwiftUI'])
+widget_target.add_system_frameworks(['WidgetKit', 'SwiftUI', 'Foundation'])
 
 # 5. File Refs
 app_group = project.main_group['App']
@@ -70,4 +73,4 @@ embed_phase.add_file_reference(widget_target.product_reference).settings = { 'AT
 app_target.add_dependency(widget_target)
 
 project.save
-puts "Project security and versioning successfully aligned."
+puts "Total Discovery Fix applied successfully (Search Paths + Preview Snapshots)."
