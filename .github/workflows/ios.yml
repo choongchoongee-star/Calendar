@@ -78,9 +78,6 @@ jobs:
             archive \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             CODE_SIGN_STYLE="Manual" \
-            DEVELOPMENT_TEAM="XLFLVNJU9Q" \
-            PROVISIONING_PROFILE_SPECIFIER="Calendar" \
-            PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*][target=CalendarWidget]="Dangmoo Calendar Widget" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/app-signing.keychain-db"
 
