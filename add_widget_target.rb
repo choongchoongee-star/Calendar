@@ -3,28 +3,19 @@ require 'xcodeproj'
 project_path = 'ios/App/App.xcodeproj'
 project = Xcodeproj::Project.open(project_path)
 
-# 1. Target Configuration
+# 1. Configuration
 app_target = project.targets.find { |t| t.name == 'App' }
 target_name = 'CalendarWidget'
 bundle_id = 'com.dangmoo.calendar.widget'
 
-# Cleanup existing
+# 2. Reset Widget Target
 project.targets.select { |t| t.name == target_name }.each(&:remove_from_project)
 widget_target = project.new_target(:app_extension, target_name, :ios, '16.0')
 widget_target.product_name = target_name
 
-# 2. Ensure Product is in the "Products" group
-products_group = project.main_group['Products'] || project.main_group.new_group('Products')
-unless products_group.children.include?(widget_target.product_reference)
-  products_group.children << widget_target.product_reference
-end
+# 3. Settings Lock
+m_version = app_target.build_configurations.first.build_settings['MARKETING_VERSION'] || '1.0.0'
 
-# 3. Versioning & Architecture Sync
-app_config = app_target.build_configurations.first
-m_version = app_config.build_settings['MARKETING_VERSION'] || '1.0.0'
-archs = app_config.build_settings['ARCHS'] || '$(ARCHS_STANDARD)'
-
-# 4. Settings Loop
 [app_target, widget_target].each do |target|
   target.build_configurations.each do |config|
     config.build_settings['DEVELOPMENT_TEAM'] = 'XLFLVNJU9Q'
@@ -33,7 +24,6 @@ archs = app_config.build_settings['ARCHS'] || '$(ARCHS_STANDARD)'
     config.build_settings['MARKETING_VERSION'] = m_version
     config.build_settings['SWIFT_VERSION'] = '5.0'
     config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
-    config.build_settings['ARCHS'] = archs
     config.build_settings['ONLY_ACTIVE_ARCH'] = 'NO'
     
     if target.name == 'App'
@@ -50,36 +40,39 @@ archs = app_config.build_settings['ARCHS'] || '$(ARCHS_STANDARD)'
       config.build_settings['ASSETCATALOG_COMPILER_APPICON_NAME'] = 'AppIcon'
       config.build_settings['SKIP_INSTALL'] = 'YES'
       config.build_settings['APPLICATION_EXTENSION_API_ONLY'] = 'YES'
-      config.build_settings['LD_RUNPATH_SEARCH_PATHS'] = '$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks'
     end
   end
 end
 
-# 5. Linkages
+# 4. Linkages (Sources & Frameworks)
 widget_target.add_system_frameworks(['WidgetKit', 'SwiftUI', 'Foundation'])
-
-# 6. File Mapping
 app_group = project.main_group['App']
 widget_group = app_group['WidgetSource'] || app_group.new_group('WidgetSource', 'WidgetSource')
 
-# Refresh source refs
 project.objects.select { |obj| obj.isa == 'PBXFileReference' && obj.path && obj.path.include?('CalendarWidget') }.each(&:remove_from_project)
 swift_ref = widget_group.new_file('CalendarWidget.swift')
 widget_target.source_build_phase.add_file_reference(swift_ref)
 
-# Link Assets
+# Asset Linkage
 assets_ref = app_group.find_file_by_path('Assets.xcassets')
 widget_target.resources_build_phase.add_file_reference(assets_ref) if assets_ref
 
-# 7. Embedding
-app_target.copy_files_build_phases.select { |p| p.name == 'Embed App Extensions' }.each(&:remove_from_project)
-embed_phase = app_target.new_copy_files_build_phase('Embed App Extensions')
+# 5. CRITICAL: Manual Embedding (PlugIns)
+# Ensure product reference is clean
+project.objects.select { |obj| obj.isa == 'PBXFileReference' && obj.path && obj.path == "#{target_name}.appex" }.each(&:remove_from_project)
+
+# Ensure "Embed App Extensions" phase exists and is tied to PlugIns
+embed_phase = app_target.copy_files_build_phases.find { |p| p.name == 'Embed App Extensions' } || app_target.new_copy_files_build_phase('Embed App Extensions')
 embed_phase.symbol_dst_subfolder_spec = :plug_ins
+embed_phase.dst_path = "" # Standard for PlugIns
+embed_phase.clear # Start fresh
+
+# Add the widget product reference to the embedding phase
 build_file = embed_phase.add_file_reference(widget_target.product_reference)
 build_file.settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
 
-# 8. Final Linkage
-app_target.add_dependency(widget_target) unless app_target.dependencies.find { |d| d.target && d.target.name == target_name }
+# 6. Final Linkage
+app_target.add_dependency(widget_target)
 
 project.save
-puts "Successfully applied Final Integrity fix (Products Group + Architecture Sync)."
+puts "Successfully applied Ironclad Embedding Fix."
