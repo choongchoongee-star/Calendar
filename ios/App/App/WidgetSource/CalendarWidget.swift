@@ -12,6 +12,7 @@ struct WidgetConstants {
     static let appGroup = "group.com.dangmoo.calendar"
     static let offsetKey = "widgetMonthOffset"
     static let selectedCalendarKey = "selectedCalendarId"
+    static let allCalendarsKey = "allCalendars"
     
     static func getOffset() -> Int {
         UserDefaults(suiteName: appGroup)?.integer(forKey: offsetKey) ?? 0
@@ -21,12 +22,50 @@ struct WidgetConstants {
         UserDefaults(suiteName: appGroup)?.set(value, forKey: offsetKey)
     }
 
-    static func getSelectedCalendarId() -> String? {
+    static func getRecentCalendarId() -> String? {
         UserDefaults(suiteName: appGroup)?.string(forKey: selectedCalendarKey)
+    }
+    
+    static func getAllCalendars() -> [CalendarEntity] {
+        let raw = UserDefaults(suiteName: appGroup)?.array(forKey: allCalendarsKey) as? [[String: String]] ?? []
+        return raw.compactMap { dict in
+            guard let id = dict["id"], let title = dict["title"] else { return nil }
+            return CalendarEntity(id: id, title: title)
+        }
     }
 }
 
-// MARK: - 2. Data Models
+// MARK: - 2. App Entities for Configuration
+struct CalendarEntity: AppEntity, Identifiable {
+    let id: String
+    let title: String
+    
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "캘린더"
+    static var defaultQuery = CalendarQuery()
+    
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(title: "\(title)")
+    }
+}
+
+struct CalendarQuery: EntityQuery {
+    func entities(for identifiers: [CalendarEntity.ID]) async throws -> [CalendarEntity] {
+        WidgetConstants.getAllCalendars().filter { identifiers.contains($0.id) }
+    }
+    
+    func suggestedEntities() async throws -> [CalendarEntity] {
+        WidgetConstants.getAllCalendars()
+    }
+    
+    func defaultResult() async -> CalendarEntity? {
+        // Default to the first one or the most recent one
+        let all = WidgetConstants.getAllCalendars()
+        let recentId = WidgetConstants.getRecentCalendarId()
+        return all.first { $0.id == recentId } ?? all.first
+    }
+}
+
+// MARK: - 3. Data Models
 struct Schedule: Decodable, Identifiable {
     let id: String
     let text: String
@@ -41,24 +80,17 @@ struct CalendarEntry: TimelineEntry {
     let schedules: [Schedule]
     let displayMonth: Date
     let currentOffset: Int
-    let isCalendarSelected: Bool
+    let calendarTitle: String?
 }
 
-// MARK: - 3. AppIntents for Interaction
+// MARK: - 4. AppIntents for Interaction
 struct ChangeMonthIntent: AppIntent {
     static var title: LocalizedStringResource = "달 이동"
-    
-    @Parameter(title: "Offset Delta")
-    var delta: Int
-
+    @Parameter(title: "Offset Delta") var delta: Int
     init() {}
-    init(delta: Int) {
-        self.delta = delta
-    }
-
+    init(delta: Int) { self.delta = delta }
     func perform() async throws -> some IntentResult {
-        let current = WidgetConstants.getOffset()
-        WidgetConstants.setOffset(current + delta)
+        WidgetConstants.setOffset(WidgetConstants.getOffset() + delta)
         WidgetCenter.shared.reloadAllTimelines()
         return .result()
     }
@@ -66,14 +98,22 @@ struct ChangeMonthIntent: AppIntent {
 
 struct RefreshWidgetIntent: AppIntent {
     static var title: LocalizedStringResource = "위젯 새로고침"
-    
     func perform() async throws -> some IntentResult {
         WidgetCenter.shared.reloadAllTimelines()
         return .result()
     }
 }
 
-// MARK: - 4. Provider
+// MARK: - 5. Configuration Intent
+struct ConfigurationIntent: WidgetConfigurationIntent {
+    static var title: LocalizedStringResource = "달력 설정"
+    static var description = IntentDescription("표시할 캘린더를 선택하세요.")
+
+    @Parameter(title: "표시할 캘린더")
+    var calendar: CalendarEntity?
+}
+
+// MARK: - 6. Provider
 struct Provider: AppIntentTimelineProvider {
     let supabaseBaseUrl = "https://rztrkeejliampmzcqbmx.supabase.co/rest/v1/schedules"
     let supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6dHJrZWVqbGlhbXBtemNxYm14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDE4MTksImV4cCI6MjA4NDY3NzgxOX0.ind5OQoPfWuAd_StssdeIDlrKxotW3XPhGOV63NqUWY"
@@ -88,22 +128,28 @@ struct Provider: AppIntentTimelineProvider {
     ]
 
     func placeholder(in context: Context) -> CalendarEntry {
-        CalendarEntry(date: Date(), schedules: [], displayMonth: Date(), currentOffset: 0, isCalendarSelected: true)
+        CalendarEntry(date: Date(), schedules: [], displayMonth: Date(), currentOffset: 0, calendarTitle: "캘린더")
     }
 
     func snapshot(for configuration: ConfigurationIntent, in context: Context) async -> CalendarEntry {
-        CalendarEntry(date: Date(), schedules: [], displayMonth: Date(), currentOffset: 0, isCalendarSelected: true)
+        CalendarEntry(date: Date(), schedules: [], displayMonth: Date(), currentOffset: 0, calendarTitle: "캘린더")
     }
 
     func timeline(for configuration: ConfigurationIntent, in context: Context) async -> Timeline<CalendarEntry> {
         let currentDate = Date()
         let offset = WidgetConstants.getOffset()
         let displayMonth = Calendar.current.date(byAdding: .month, value: offset, to: currentDate) ?? currentDate
-        let selectedCalendarId = WidgetConstants.getSelectedCalendarId()
+        
+        // 1. Determine which calendar to show
+        // Priority: Explicit configuration > Recently viewed fallback
+        let targetCalendar = configuration.calendar ?? {
+            let recentId = WidgetConstants.getRecentCalendarId()
+            return WidgetConstants.getAllCalendars().first { $0.id == recentId }
+        }()
 
         var fetchedSchedules: [Schedule] = []
-        if let calId = selectedCalendarId, !calId.isEmpty {
-            let urlStr = "\(supabaseBaseUrl)?calendar_id=eq.\(calId)&select=*"
+        if let cal = targetCalendar {
+            let urlStr = "\(supabaseBaseUrl)?calendar_id=eq.\(cal.id)&select=*"
             if let url = URL(string: urlStr) {
                 var request = URLRequest(url: url)
                 request.addValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
@@ -118,31 +164,23 @@ struct Provider: AppIntentTimelineProvider {
         let holidaySchedules = holidays.map { h in
             Schedule(id: "h-\(h.0)", text: h.2, start_date: h.0, end_date: h.1, color: "#E74C3C", type: "holiday")
         }
-        
         let userSchedules = fetchedSchedules.map { s in
              Schedule(id: s.id, text: s.text, start_date: s.start_date, end_date: s.end_date, color: s.color ?? "#5DA2D5", type: "user")
         }
         
-        let allSchedules = userSchedules + holidaySchedules
-
         let entry = CalendarEntry(
             date: currentDate, 
-            schedules: allSchedules, 
+            schedules: userSchedules + holidaySchedules, 
             displayMonth: displayMonth, 
             currentOffset: offset,
-            isCalendarSelected: selectedCalendarId != nil && !selectedCalendarId!.isEmpty
+            calendarTitle: targetCalendar?.title
         )
         let nextUpdate = Calendar.current.date(byAdding: .minute, value: 30, to: currentDate)!
         return Timeline(entries: [entry], policy: .after(nextUpdate))
     }
 }
 
-// MARK: - 5. Configuration Intent
-struct ConfigurationIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Configuration"
-}
-
-// MARK: - 6. Main View
+// MARK: - 7. Main View
 struct CalendarWidgetEntryView : View {
     var entry: Provider.Entry
     @Environment(\.colorScheme) var colorScheme
@@ -153,7 +191,7 @@ struct CalendarWidgetEntryView : View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if !entry.isCalendarSelected && family != .systemSmall {
+            if entry.calendarTitle == nil && family != .systemSmall {
                 noCalendarView
             } else if family == .systemSmall {
                 smallView
@@ -170,20 +208,21 @@ struct CalendarWidgetEntryView : View {
         VStack(spacing: 10) {
             Image(systemName: "calendar.badge.exclamationmark").font(.largeTitle).foregroundColor(.gray)
             Text("캘린더를 선택해주세요").font(.headline)
-            Text("앱에서 캘린더를 선택하면\n위젯에 일정이 표시됩니다").font(.caption).multilineTextAlignment(.center).foregroundColor(.gray)
+            Text("위젯을 길게 눌러 편집하거나\n앱에서 캘린더를 열람하세요").font(.caption).multilineTextAlignment(.center).foregroundColor(.gray)
         }
     }
 
     var smallView: some View {
         VStack(alignment: .leading) {
-            Text(monthAbbr(entry.date)).font(.system(size: 24, weight: .bold))
-            Text("\(Calendar.current.component(.day, from: entry.date))").font(.system(size: 40, weight: .heavy))
+            Text(monthAbbr(entry.date)).font(.system(size: 20, weight: .bold))
+            Text("\(Calendar.current.component(.day, from: entry.date))").font(.system(size: 36, weight: .heavy))
             Spacer()
+            if let title = entry.calendarTitle {
+                Text(title).font(.system(size: 10, weight: .bold)).foregroundColor(.blue).lineLimit(1)
+            }
             let todayEvents = eventsFor(date: entry.date)
             if let first = todayEvents.first {
-                Text(first.text).font(.caption).lineLimit(1).foregroundColor(Color(hex: first.color ?? "#5DA2D5"))
-            } else {
-                Text(entry.isCalendarSelected ? "일정 없음" : "캘린더 미선택").font(.system(size: 10)).foregroundColor(.gray)
+                Text(first.text).font(.caption2).lineLimit(1).foregroundColor(Color(hex: first.color ?? "#5DA2D5"))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -192,10 +231,16 @@ struct CalendarWidgetEntryView : View {
 
     var fullGridView: some View {
         VStack(spacing: 0) {
+            // -- Header --
             HStack {
-                Text(monthAbbr(entry.displayMonth))
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(colorScheme == .dark ? .white : .black)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(monthAbbr(entry.displayMonth))
+                        .font(.system(size: 18, weight: .bold))
+                    if let title = entry.calendarTitle {
+                        Text(title).font(.system(size: 9, weight: .bold)).foregroundColor(.blue).lineLimit(1)
+                    }
+                }
+                .foregroundColor(colorScheme == .dark ? .white : .black)
                 
                 Spacer()
                 
@@ -323,7 +368,7 @@ struct CalendarWidgetEntryView : View {
     }
 }
 
-// MARK: - 7. Entry Point
+// MARK: - 8. Entry Point
 @main
 struct CalendarWidgetBundle: WidgetBundle {
     var body: some Widget {
