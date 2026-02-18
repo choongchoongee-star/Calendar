@@ -11,6 +11,7 @@ import AppIntents
 struct WidgetConstants {
     static let appGroup = "group.com.dangmoo.calendar"
     static let offsetKey = "widgetMonthOffset"
+    static let selectedCalendarKey = "selectedCalendarId"
     
     static func getOffset() -> Int {
         UserDefaults(suiteName: appGroup)?.integer(forKey: offsetKey) ?? 0
@@ -18,6 +19,10 @@ struct WidgetConstants {
     
     static func setOffset(_ value: Int) {
         UserDefaults(suiteName: appGroup)?.set(value, forKey: offsetKey)
+    }
+
+    static func getSelectedCalendarId() -> String? {
+        UserDefaults(suiteName: appGroup)?.string(forKey: selectedCalendarKey)
     }
 }
 
@@ -36,6 +41,7 @@ struct CalendarEntry: TimelineEntry {
     let schedules: [Schedule]
     let displayMonth: Date
     let currentOffset: Int
+    let isCalendarSelected: Bool
 }
 
 // MARK: - 3. AppIntents for Interaction
@@ -53,7 +59,6 @@ struct ChangeMonthIntent: AppIntent {
     func perform() async throws -> some IntentResult {
         let current = WidgetConstants.getOffset()
         WidgetConstants.setOffset(current + delta)
-        // Force widget refresh
         WidgetCenter.shared.reloadAllTimelines()
         return .result()
     }
@@ -63,8 +68,6 @@ struct RefreshWidgetIntent: AppIntent {
     static var title: LocalizedStringResource = "위젯 새로고침"
     
     func perform() async throws -> some IntentResult {
-        // Reset to current month on refresh or just force reload? 
-        // Requirements say "refresh the widget", usually implies fetching latest data.
         WidgetCenter.shared.reloadAllTimelines()
         return .result()
     }
@@ -72,7 +75,7 @@ struct RefreshWidgetIntent: AppIntent {
 
 // MARK: - 4. Provider
 struct Provider: AppIntentTimelineProvider {
-    let supabaseUrl = "https://rztrkeejliampmzcqbmx.supabase.co/rest/v1/schedules?select=*"
+    let supabaseBaseUrl = "https://rztrkeejliampmzcqbmx.supabase.co/rest/v1/schedules"
     let supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6dHJrZWVqbGlhbXBtemNxYm14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDE4MTksImV4cCI6MjA4NDY3NzgxOX0.ind5OQoPfWuAd_StssdeIDlrKxotW3XPhGOV63NqUWY"
 
     let holidays = [
@@ -85,44 +88,56 @@ struct Provider: AppIntentTimelineProvider {
     ]
 
     func placeholder(in context: Context) -> CalendarEntry {
-        CalendarEntry(date: Date(), schedules: [], displayMonth: Date(), currentOffset: 0)
+        CalendarEntry(date: Date(), schedules: [], displayMonth: Date(), currentOffset: 0, isCalendarSelected: true)
     }
 
     func snapshot(for configuration: ConfigurationIntent, in context: Context) async -> CalendarEntry {
-        CalendarEntry(date: Date(), schedules: [], displayMonth: Date(), currentOffset: 0)
+        CalendarEntry(date: Date(), schedules: [], displayMonth: Date(), currentOffset: 0, isCalendarSelected: true)
     }
 
     func timeline(for configuration: ConfigurationIntent, in context: Context) async -> Timeline<CalendarEntry> {
         let currentDate = Date()
         let offset = WidgetConstants.getOffset()
         let displayMonth = Calendar.current.date(byAdding: .month, value: offset, to: currentDate) ?? currentDate
+        let selectedCalendarId = WidgetConstants.getSelectedCalendarId()
 
         var fetchedSchedules: [Schedule] = []
-        if let url = URL(string: supabaseUrl) {
-            var request = URLRequest(url: url)
-            request.addValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
-            request.addValue(supabaseKey, forHTTPHeaderField: "apikey")
-            do {
-                let (data, _) = try await URLSession.shared.data(for: request)
-                fetchedSchedules = try JSONDecoder().decode([Schedule].self, from: data)
-            } catch { print("Fetch error: \(error)") }
+        if let calId = selectedCalendarId, !calId.isEmpty {
+            let urlStr = "\(supabaseBaseUrl)?calendar_id=eq.\(calId)&select=*"
+            if let url = URL(string: urlStr) {
+                var request = URLRequest(url: url)
+                request.addValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
+                request.addValue(supabaseKey, forHTTPHeaderField: "apikey")
+                do {
+                    let (data, _) = try await URLSession.shared.data(for: request)
+                    fetchedSchedules = try JSONDecoder().decode([Schedule].self, from: data)
+                } catch { print("Fetch error: \(error)") }
+            }
         }
 
         let holidaySchedules = holidays.map { h in
             Schedule(id: "h-\(h.0)", text: h.2, start_date: h.0, end_date: h.1, color: "#E74C3C", type: "holiday")
         }
         
-        let allSchedules = fetchedSchedules.map { s in
+        let userSchedules = fetchedSchedules.map { s in
              Schedule(id: s.id, text: s.text, start_date: s.start_date, end_date: s.end_date, color: s.color ?? "#5DA2D5", type: "user")
-        } + holidaySchedules
+        }
+        
+        let allSchedules = userSchedules + holidaySchedules
 
-        let entry = CalendarEntry(date: currentDate, schedules: allSchedules, displayMonth: displayMonth, currentOffset: offset)
+        let entry = CalendarEntry(
+            date: currentDate, 
+            schedules: allSchedules, 
+            displayMonth: displayMonth, 
+            currentOffset: offset,
+            isCalendarSelected: selectedCalendarId != nil && !selectedCalendarId!.isEmpty
+        )
         let nextUpdate = Calendar.current.date(byAdding: .minute, value: 30, to: currentDate)!
         return Timeline(entries: [entry], policy: .after(nextUpdate))
     }
 }
 
-// MARK: - 5. Configuration Intent (Required for AppIntentTimelineProvider)
+// MARK: - 5. Configuration Intent
 struct ConfigurationIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Configuration"
 }
@@ -138,7 +153,9 @@ struct CalendarWidgetEntryView : View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if family == .systemSmall {
+            if !entry.isCalendarSelected && family != .systemSmall {
+                noCalendarView
+            } else if family == .systemSmall {
                 smallView
             } else {
                 fullGridView
@@ -146,6 +163,14 @@ struct CalendarWidgetEntryView : View {
         }
         .containerBackground(for: .widget) {
             colorScheme == .dark ? Color.black : Color.white
+        }
+    }
+
+    var noCalendarView: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "calendar.badge.exclamationmark").font(.largeTitle).foregroundColor(.gray)
+            Text("캘린더를 선택해주세요").font(.headline)
+            Text("앱에서 캘린더를 선택하면\n위젯에 일정이 표시됩니다").font(.caption).multilineTextAlignment(.center).foregroundColor(.gray)
         }
     }
 
@@ -157,6 +182,8 @@ struct CalendarWidgetEntryView : View {
             let todayEvents = eventsFor(date: entry.date)
             if let first = todayEvents.first {
                 Text(first.text).font(.caption).lineLimit(1).foregroundColor(Color(hex: first.color ?? "#5DA2D5"))
+            } else {
+                Text(entry.isCalendarSelected ? "일정 없음" : "캘린더 미선택").font(.system(size: 10)).foregroundColor(.gray)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -165,7 +192,6 @@ struct CalendarWidgetEntryView : View {
 
     var fullGridView: some View {
         VStack(spacing: 0) {
-            // -- Header --
             HStack {
                 Text(monthAbbr(entry.displayMonth))
                     .font(.system(size: 18, weight: .bold))
@@ -173,21 +199,15 @@ struct CalendarWidgetEntryView : View {
                 
                 Spacer()
                 
-                // Navigation Chevrons (Persistent via AppIntent)
                 HStack(spacing: 15) {
-                    Button(intent: ChangeMonthIntent(delta: -1)) {
-                        Image(systemName: "chevron.left")
-                    }
-                    Button(intent: ChangeMonthIntent(delta: 1)) {
-                        Image(systemName: "chevron.right")
-                    }
+                    Button(intent: ChangeMonthIntent(delta: -1)) { Image(systemName: "chevron.left") }
+                    Button(intent: ChangeMonthIntent(delta: 1)) { Image(systemName: "chevron.right") }
                 }
                 .font(.system(size: 14, weight: .bold))
                 .tint(colorScheme == .dark ? .white : .black)
 
                 Spacer()
                 
-                // Actions
                 HStack(spacing: 12) {
                     Link(destination: URL(string: "vibe://add")!) {
                         Image(systemName: "plus").font(.system(size: 16, weight: .bold))
@@ -201,7 +221,6 @@ struct CalendarWidgetEntryView : View {
             }
             .padding(.bottom, 12)
 
-            // -- Weekday Labels --
             LazyVGrid(columns: columns, spacing: 0) {
                 ForEach(0..<7) { i in
                     Text(weekdays[i])
@@ -211,7 +230,6 @@ struct CalendarWidgetEntryView : View {
             }
             .padding(.bottom, 6)
 
-            // -- Calendar Grid --
             let days = generateDays(for: entry.displayMonth)
             LazyVGrid(columns: columns, spacing: 0) {
                 ForEach(0..<days.count, id: \.self) { index in
@@ -305,7 +323,7 @@ struct CalendarWidgetEntryView : View {
     }
 }
 
-// MARK: - 7. Widget Entry Point
+// MARK: - 7. Entry Point
 @main
 struct CalendarWidgetBundle: WidgetBundle {
     var body: some Widget {
