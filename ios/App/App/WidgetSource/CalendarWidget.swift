@@ -13,6 +13,7 @@ struct WidgetConstants {
     static let offsetKey = "widgetMonthOffset"
     static let selectedCalendarKey = "selectedCalendarId"
     static let allCalendarsKey = "allCalendars"
+    static let authTokenKey = "supabaseAuthToken"
     
     static func getOffset() -> Int {
         UserDefaults(suiteName: appGroup)?.integer(forKey: offsetKey) ?? 0
@@ -26,12 +27,17 @@ struct WidgetConstants {
         UserDefaults(suiteName: appGroup)?.string(forKey: selectedCalendarKey)
     }
     
+    static func getAuthToken() -> String? {
+        UserDefaults(suiteName: appGroup)?.string(forKey: authTokenKey)
+    }
+    
     static func getAllCalendars() -> [CalendarEntity] {
         guard let raw = UserDefaults(suiteName: appGroup)?.array(forKey: allCalendarsKey) else { return [] }
         return raw.compactMap { item in
-            guard let dict = item as? [String: String],
-                  let id = dict["id"],
-                  let title = dict["title"] else { return nil }
+            // Use [String: Any] and safe casting for better resilience
+            guard let dict = item as? [String: Any],
+                  let id = dict["id"] as? String,
+                  let title = dict["title"] as? String else { return nil }
             return CalendarEntity(id: id, title: title)
         }
     }
@@ -42,7 +48,7 @@ struct CalendarEntity: AppEntity, Identifiable {
     var id: String
     var title: String
     
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Calendar"
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "캘린더"
     static var defaultQuery = CalendarQuery()
     
     var displayRepresentation: DisplayRepresentation {
@@ -52,16 +58,16 @@ struct CalendarEntity: AppEntity, Identifiable {
 
 struct CalendarQuery: EntityQuery {
     func entities(for identifiers: [String]) async throws -> [CalendarEntity] {
-        WidgetConstants.getAllCalendars().filter { identifiers.contains($0.id) }
+        let all = WidgetConstants.getAllCalendars()
+        return all.filter { identifiers.contains($0.id) }
     }
     
     func suggestedEntities() async throws -> [CalendarEntity] {
-        WidgetConstants.getAllCalendars()
+        return WidgetConstants.getAllCalendars()
     }
     
-    // Some versions of iOS prefer this explicit method for re-hydrating selection
     func entity(for identifier: String) async throws -> CalendarEntity? {
-        WidgetConstants.getAllCalendars().first { $0.id == identifier }
+        return WidgetConstants.getAllCalendars().first { $0.id == identifier }
     }
     
     func defaultResult() async -> CalendarEntity? {
@@ -78,12 +84,12 @@ struct Schedule: Decodable, Identifiable {
     let start_date: String
     let end_date: String
     let color: String?
-    let type: String? // 'holiday' or 'user'
 }
 
 struct CalendarEntry: TimelineEntry {
     let date: Date
     let schedules: [Schedule]
+    let holidays: [Schedule]
     let displayMonth: Date
     let currentOffset: Int
     let calendarTitle: String?
@@ -92,7 +98,7 @@ struct CalendarEntry: TimelineEntry {
 // MARK: - 4. AppIntents for Interaction
 struct ChangeMonthIntent: AppIntent {
     static var title: LocalizedStringResource = "달 이동"
-    @Parameter(title: "Offset Delta") var delta: Int
+    @Parameter(title: "Delta") var delta: Int
     init() {}
     init(delta: Int) { self.delta = delta }
     func perform() async throws -> some IntentResult {
@@ -113,10 +119,7 @@ struct RefreshWidgetIntent: AppIntent {
 // MARK: - 5. Configuration Intent
 struct ConfigurationIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "달력 설정"
-    static var description = IntentDescription("표시할 캘린더를 선택하세요.")
-
-    @Parameter(title: "표시할 캘린더")
-    var calendar: CalendarEntity?
+    @Parameter(title: "표시할 캘린더") var calendar: CalendarEntity?
 }
 
 // MARK: - 6. Provider
@@ -124,7 +127,7 @@ struct Provider: AppIntentTimelineProvider {
     let supabaseBaseUrl = "https://rztrkeejliampmzcqbmx.supabase.co/rest/v1/schedules"
     let supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6dHJrZWVqbGlhbXBtemNxYm14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDE4MTksImV4cCI6MjA4NDY3NzgxOX0.ind5OQoPfWuAd_StssdeIDlrKxotW3XPhGOV63NqUWY"
 
-    let holidays = [
+    let holidayData = [
         ("2026-01-01", "2026-01-01", "신정"), ("2026-02-16", "2026-02-18", "설날"),
         ("2026-03-01", "2026-03-01", "삼일절"), ("2026-05-05", "2026-05-05", "어린이날"),
         ("2026-05-24", "2026-05-24", "부처님 오신 날"), ("2026-06-06", "2026-06-06", "현충일"),
@@ -134,11 +137,11 @@ struct Provider: AppIntentTimelineProvider {
     ]
 
     func placeholder(in context: Context) -> CalendarEntry {
-        CalendarEntry(date: Date(), schedules: [], displayMonth: Date(), currentOffset: 0, calendarTitle: "캘린더")
+        CalendarEntry(date: Date(), schedules: [], holidays: [], displayMonth: Date(), currentOffset: 0, calendarTitle: "캘린더")
     }
 
     func snapshot(for configuration: ConfigurationIntent, in context: Context) async -> CalendarEntry {
-        CalendarEntry(date: Date(), schedules: [], displayMonth: Date(), currentOffset: 0, calendarTitle: "캘린더")
+        CalendarEntry(date: Date(), schedules: [], holidays: [], displayMonth: Date(), currentOffset: 0, calendarTitle: "캘린더")
     }
 
     func timeline(for configuration: ConfigurationIntent, in context: Context) async -> Timeline<CalendarEntry> {
@@ -156,8 +159,15 @@ struct Provider: AppIntentTimelineProvider {
             let urlStr = "\(supabaseBaseUrl)?calendar_id=eq.\(cal.id)&select=*"
             if let url = URL(string: urlStr) {
                 var request = URLRequest(url: url)
+                request.timeoutInterval = 10
                 request.addValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
                 request.addValue(supabaseKey, forHTTPHeaderField: "apikey")
+                
+                // Add Auth Token if available to bypass RLS
+                if let token = WidgetConstants.getAuthToken(), !token.isEmpty {
+                    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                }
+                
                 do {
                     let (data, _) = try await URLSession.shared.data(for: request)
                     fetchedSchedules = try JSONDecoder().decode([Schedule].self, from: data)
@@ -165,16 +175,14 @@ struct Provider: AppIntentTimelineProvider {
             }
         }
 
-        let holidaySchedules = holidays.map { h in
-            Schedule(id: "h-\(h.0)", text: h.2, start_date: h.0, end_date: h.1, color: "#E74C3C", type: "holiday")
-        }
-        let userSchedules = fetchedSchedules.map { s in
-             Schedule(id: s.id, text: s.text, start_date: s.start_date, end_date: s.end_date, color: s.color ?? "#5DA2D5", type: "user")
+        let holidays = holidayData.map { h in
+            Schedule(id: "h-\(h.0)", text: h.2, start_date: h.0, end_date: h.1, color: "#E74C3C")
         }
         
         let entry = CalendarEntry(
             date: currentDate, 
-            schedules: userSchedules + holidaySchedules, 
+            schedules: fetchedSchedules, 
+            holidays: holidays,
             displayMonth: displayMonth, 
             currentOffset: offset,
             calendarTitle: targetCalendar?.title
@@ -297,34 +305,36 @@ struct CalendarWidgetEntryView : View {
                 let isCurrentMonth = Calendar.current.isDate(date, equalTo: entry.displayMonth, toGranularity: .month)
                 let isToday = Calendar.current.isDateInToday(date)
                 let isSunday = Calendar.current.component(.weekday, from: date) == 1
+                let isHoliday = entry.holidays.contains(where: { isWithin(date: date, event: $0) })
                 
                 Text("\(Calendar.current.component(.day, from: date))")
                     .font(.system(size: 11, weight: isToday ? .bold : .regular))
-                    .foregroundColor(textColor(date: date, isCurrentMonth: isCurrentMonth, isSunday: isSunday))
+                    .foregroundColor(textColor(date: date, isCurrentMonth: isCurrentMonth, isSunday: isSunday, isHoliday: isHoliday))
                     .frame(width: 20, height: 20)
                     .background(isToday ? Circle().fill(Color(hex: "#FF6B54")) : nil)
                 
                 VStack(spacing: 1) {
-                    let dayEvents = eventsFor(date: date)
-                    ForEach(dayEvents.prefix(2)) { ev in
-                        if ev.type == "holiday" {
-                             Text(ev.text)
-                                .font(.system(size: 7, weight: .bold))
-                                .padding(.horizontal, 2)
-                                .background(RoundedRectangle(cornerRadius: 2).fill(Color(hex: "#E74C3C")))
-                                .foregroundColor(.white)
-                                .lineLimit(1)
-                        } else {
-                            Text(ev.text)
-                                .font(.system(size: 7))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 2)
-                                .background(Color(hex: "#5DA2D5"))
-                                .foregroundColor(.white)
-                                .lineLimit(1)
-                        }
+                    let dayHolidays = entry.holidays.filter { isWithin(date: date, event: $0) }
+                    let daySchedules = entry.schedules.filter { isWithin(date: date, event: $0) }
+                    
+                    ForEach(dayHolidays.prefix(1)) { ev in
+                         Text(ev.text)
+                            .font(.system(size: 7, weight: .bold))
+                            .padding(.horizontal, 2)
+                            .background(RoundedRectangle(cornerRadius: 2).fill(Color(hex: "#E74C3C")))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
                     }
-                    if dayEvents.count > 2 {
+                    ForEach(daySchedules.prefix(2 - dayHolidays.count)) { ev in
+                        Text(ev.text)
+                            .font(.system(size: 7))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 2)
+                            .background(Color(hex: ev.color ?? "#5DA2D5"))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                    }
+                    if dayHolidays.count + daySchedules.count > 2 {
                         Text("...")
                             .font(.system(size: 7))
                             .foregroundColor(.gray)
@@ -337,6 +347,11 @@ struct CalendarWidgetEntryView : View {
         .widgetURL(date != nil ? URL(string: "vibe://date/\(formatDate(date!))") : nil)
     }
 
+    func isWithin(date: Date, event: Schedule) -> Bool {
+        let ds = formatDate(date)
+        return event.start_date <= ds && event.end_date >= ds
+    }
+
     func monthAbbr(_ date: Date) -> String {
         let f = DateFormatter(); f.dateFormat = "MMM"; return f.string(from: date).uppercased()
     }
@@ -345,12 +360,9 @@ struct CalendarWidgetEntryView : View {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.string(from: date)
     }
 
-    func textColor(date: Date, isCurrentMonth: Bool, isSunday: Bool) -> Color {
+    func textColor(date: Date, isCurrentMonth: Bool, isSunday: Bool, isHoliday: Bool) -> Color {
         if !isCurrentMonth { return Color(hex: "#444444") }
-        if isSunday { return Color(hex: "#FF4D4D") }
-        if entry.schedules.contains(where: { $0.type == "holiday" && $0.start_date <= formatDate(date) && $0.end_date >= formatDate(date) }) {
-             return Color(hex: "#FF4D4D")
-        }
+        if isSunday || isHoliday { return Color(hex: "#FF4D4D") }
         return colorScheme == .dark ? .white : .black
     }
 
@@ -367,7 +379,7 @@ struct CalendarWidgetEntryView : View {
 
     func eventsFor(date: Date) -> [Schedule] {
         let ds = formatDate(date)
-        return entry.schedules.filter { $0.start_date <= ds && $0.end_date >= ds }
+        return (entry.holidays + entry.schedules).filter { $0.start_date <= ds && $0.end_date >= ds }
     }
 }
 

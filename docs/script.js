@@ -35,10 +35,11 @@ const DataManager = {
         if (window.Capacitor && window.Capacitor.isNativePlatform()) {
             const WidgetBridge = window.Capacitor.Plugins.WidgetBridge;
             if (WidgetBridge) {
-                // Send current selection AND the full list for the configuration menu
+                // Send selection, list, and auth token for RLS
                 WidgetBridge.setSelectedCalendar({ 
                     calendarId: this.currentCalendarId || "",
-                    calendars: this.calendars.map(c => ({ id: c.id, title: c.title }))
+                    calendars: this.calendars.map(c => ({ id: c.id, title: c.title })),
+                    authToken: (this.session && this.session.access_token) ? this.session.access_token : ""
                 });
             }
         }
