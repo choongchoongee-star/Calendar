@@ -120,3 +120,5 @@ The **Monthly Schedule Service** is a responsive, cross-platform calendar applic
 - **Hardcoded Credentials:** API keys are visible in client code.
 - **Conflict Resolution:** No complex merging strategy for simultaneous edits.
 - **Offline Support:** Limited to Guest Mode; logged-in users require connection.
+- **Widget Deep Linking:** Add JavaScript listener to handle `vibe://date/YYYY-MM-DD` URLs from the widget to auto-open specific dates.
+- **SDK Compliance (ITMS-90725):** Update build environment to iOS 26 SDK / Xcode 26 before April 28, 2026.
