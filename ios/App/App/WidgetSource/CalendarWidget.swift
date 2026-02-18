@@ -7,7 +7,21 @@ import WidgetKit
 import SwiftUI
 import AppIntents
 
-// MARK: - 1. Data Models
+// MARK: - 1. Shared Constants & State
+struct WidgetConstants {
+    static let appGroup = "group.com.dangmoo.calendar"
+    static let offsetKey = "widgetMonthOffset"
+    
+    static func getOffset() -> Int {
+        UserDefaults(suiteName: appGroup)?.integer(forKey: offsetKey) ?? 0
+    }
+    
+    static func setOffset(_ value: Int) {
+        UserDefaults(suiteName: appGroup)?.set(value, forKey: offsetKey)
+    }
+}
+
+// MARK: - 2. Data Models
 struct Schedule: Decodable, Identifiable {
     let id: String
     let text: String
@@ -20,29 +34,47 @@ struct Schedule: Decodable, Identifiable {
 struct CalendarEntry: TimelineEntry {
     let date: Date
     let schedules: [Schedule]
-    let displayMonth: Date // The month currently being viewed
+    let displayMonth: Date
+    let currentOffset: Int
 }
 
-// MARK: - 2. AppIntent for Interaction
-struct ChangeMonthIntent: WidgetConfigurationIntent {
+// MARK: - 3. AppIntents for Interaction
+struct ChangeMonthIntent: AppIntent {
     static var title: LocalizedStringResource = "달 이동"
-    static var description = IntentDescription("이전 또는 다음 달로 이동합니다.")
-
-    @Parameter(title: "Month Offset", default: 0)
-    var monthOffset: Int
+    
+    @Parameter(title: "Offset Delta")
+    var delta: Int
 
     init() {}
-    init(offset: Int) {
-        self.monthOffset = offset
+    init(delta: Int) {
+        self.delta = delta
+    }
+
+    func perform() async throws -> some IntentResult {
+        let current = WidgetConstants.getOffset()
+        WidgetConstants.setOffset(current + delta)
+        // Force widget refresh
+        WidgetCenter.shared.reloadAllTimelines()
+        return .result()
     }
 }
 
-// MARK: - 3. Provider (Timeline Logic)
+struct RefreshWidgetIntent: AppIntent {
+    static var title: LocalizedStringResource = "위젯 새로고침"
+    
+    func perform() async throws -> some IntentResult {
+        // Reset to current month on refresh or just force reload? 
+        // Requirements say "refresh the widget", usually implies fetching latest data.
+        WidgetCenter.shared.reloadAllTimelines()
+        return .result()
+    }
+}
+
+// MARK: - 4. Provider
 struct Provider: AppIntentTimelineProvider {
     let supabaseUrl = "https://rztrkeejliampmzcqbmx.supabase.co/rest/v1/schedules?select=*"
     let supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6dHJrZWVqbGlhbXBtemNxYm14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDE4MTksImV4cCI6MjA4NDY3NzgxOX0.ind5OQoPfWuAd_StssdeIDlrKxotW3XPhGOV63NqUWY"
 
-    // Hardcoded Holidays (Matches script.js)
     let holidays = [
         ("2026-01-01", "2026-01-01", "신정"), ("2026-02-16", "2026-02-18", "설날"),
         ("2026-03-01", "2026-03-01", "삼일절"), ("2026-05-05", "2026-05-05", "어린이날"),
@@ -53,17 +85,16 @@ struct Provider: AppIntentTimelineProvider {
     ]
 
     func placeholder(in context: Context) -> CalendarEntry {
-        CalendarEntry(date: Date(), schedules: [], displayMonth: Date())
+        CalendarEntry(date: Date(), schedules: [], displayMonth: Date(), currentOffset: 0)
     }
 
-    func snapshot(for configuration: ChangeMonthIntent, in context: Context) async -> CalendarEntry {
-        CalendarEntry(date: Date(), schedules: [], displayMonth: Date())
+    func snapshot(for configuration: ConfigurationIntent, in context: Context) async -> CalendarEntry {
+        CalendarEntry(date: Date(), schedules: [], displayMonth: Date(), currentOffset: 0)
     }
 
-    func timeline(for configuration: ChangeMonthIntent, in context: Context) async -> Timeline<CalendarEntry> {
+    func timeline(for configuration: ConfigurationIntent, in context: Context) async -> Timeline<CalendarEntry> {
         let currentDate = Date()
-        // We use a simple offset from the current real-world month
-        let offset = configuration.monthOffset
+        let offset = WidgetConstants.getOffset()
         let displayMonth = Calendar.current.date(byAdding: .month, value: offset, to: currentDate) ?? currentDate
 
         var fetchedSchedules: [Schedule] = []
@@ -77,7 +108,6 @@ struct Provider: AppIntentTimelineProvider {
             } catch { print("Fetch error: \(error)") }
         }
 
-        // Merge with Holidays
         let holidaySchedules = holidays.map { h in
             Schedule(id: "h-\(h.0)", text: h.2, start_date: h.0, end_date: h.1, color: "#E74C3C", type: "holiday")
         }
@@ -86,19 +116,23 @@ struct Provider: AppIntentTimelineProvider {
              Schedule(id: s.id, text: s.text, start_date: s.start_date, end_date: s.end_date, color: s.color ?? "#5DA2D5", type: "user")
         } + holidaySchedules
 
-        let entry = CalendarEntry(date: currentDate, schedules: allSchedules, displayMonth: displayMonth)
-        let nextUpdate = Calendar.current.date(byAdding: .hour, value: 1, to: currentDate)!
+        let entry = CalendarEntry(date: currentDate, schedules: allSchedules, displayMonth: displayMonth, currentOffset: offset)
+        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 30, to: currentDate)!
         return Timeline(entries: [entry], policy: .after(nextUpdate))
     }
 }
 
-// MARK: - 4. Main View
+// MARK: - 5. Configuration Intent (Required for AppIntentTimelineProvider)
+struct ConfigurationIntent: WidgetConfigurationIntent {
+    static var title: LocalizedStringResource = "Configuration"
+}
+
+// MARK: - 6. Main View
 struct CalendarWidgetEntryView : View {
     var entry: Provider.Entry
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.widgetFamily) var family
 
-    // Layout Constants
     let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
     let weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
@@ -111,11 +145,7 @@ struct CalendarWidgetEntryView : View {
             }
         }
         .containerBackground(for: .widget) {
-            if colorScheme == .dark {
-                Color.black
-            } else {
-                Color.white
-            }
+            colorScheme == .dark ? Color.black : Color.white
         }
     }
 
@@ -143,12 +173,12 @@ struct CalendarWidgetEntryView : View {
                 
                 Spacer()
                 
-                // Navigation Chevrons
+                // Navigation Chevrons (Persistent via AppIntent)
                 HStack(spacing: 15) {
-                    Button(intent: ChangeMonthIntent(offset: getOffset() - 1)) {
+                    Button(intent: ChangeMonthIntent(delta: -1)) {
                         Image(systemName: "chevron.left")
                     }
-                    Button(intent: ChangeMonthIntent(offset: getOffset() + 1)) {
+                    Button(intent: ChangeMonthIntent(delta: 1)) {
                         Image(systemName: "chevron.right")
                     }
                 }
@@ -162,9 +192,12 @@ struct CalendarWidgetEntryView : View {
                     Link(destination: URL(string: "vibe://add")!) {
                         Image(systemName: "plus").font(.system(size: 16, weight: .bold))
                     }
-                    Image(systemName: "arrow.clockwise").font(.system(size: 14, weight: .bold))
+                    Button(intent: RefreshWidgetIntent()) {
+                        Image(systemName: "arrow.clockwise").font(.system(size: 14, weight: .bold))
+                    }
                 }
                 .foregroundColor(colorScheme == .dark ? .white : .black)
+                .tint(colorScheme == .dark ? .white : .black)
             }
             .padding(.bottom, 12)
 
@@ -238,7 +271,6 @@ struct CalendarWidgetEntryView : View {
         .widgetURL(date != nil ? URL(string: "vibe://date/\(formatDate(date!))") : nil)
     }
 
-    // Helpers
     func monthAbbr(_ date: Date) -> String {
         let f = DateFormatter(); f.dateFormat = "MMM"; return f.string(from: date).uppercased()
     }
@@ -250,7 +282,6 @@ struct CalendarWidgetEntryView : View {
     func textColor(date: Date, isCurrentMonth: Bool, isSunday: Bool) -> Color {
         if !isCurrentMonth { return Color(hex: "#444444") }
         if isSunday { return Color(hex: "#FF4D4D") }
-        // Check if it's a holiday
         if entry.schedules.contains(where: { $0.type == "holiday" && $0.start_date <= formatDate(date) && $0.end_date >= formatDate(date) }) {
              return Color(hex: "#FF4D4D")
         }
@@ -261,17 +292,10 @@ struct CalendarWidgetEntryView : View {
         let cal = Calendar.current
         let first = cal.date(from: cal.dateComponents([.year, .month], from: month))!
         let weekday = cal.component(.weekday, from: first)
-        let range = cal.range(of: .day, in: .month, for: month)!
-        
-        var days: [Date?] = []
-        // Padding for previous month
         let prevMonthDays = weekday - 1
         let startOfGrid = cal.date(byAdding: .day, value: -prevMonthDays, to: first)!
-        
-        // Always return 42 days (6 weeks) for a consistent grid
-        for i in 0..<42 {
-            days.append(cal.date(byAdding: .day, value: i, to: startOfGrid))
-        }
+        var days: [Date?] = []
+        for i in 0..<42 { days.append(cal.date(byAdding: .day, value: i, to: startOfGrid)) }
         return days
     }
 
@@ -279,18 +303,9 @@ struct CalendarWidgetEntryView : View {
         let ds = formatDate(date)
         return entry.schedules.filter { $0.start_date <= ds && $0.end_date >= ds }
     }
-    
-    func getOffset() -> Int {
-        // Logic to calculate offset from current real-world month
-        let currentMonth = Calendar.current.dateComponents([.year, .month], from: Date())
-        let displayMonth = Calendar.current.dateComponents([.year, .month], from: entry.displayMonth)
-        let years = (displayMonth.year ?? 0) - (currentMonth.year ?? 0)
-        let months = (displayMonth.month ?? 0) - (currentMonth.month ?? 0)
-        return years * 12 + months
-    }
 }
 
-// MARK: - 5. Widget Bundle
+// MARK: - 7. Widget Entry Point
 @main
 struct CalendarWidgetBundle: WidgetBundle {
     var body: some Widget {
@@ -301,7 +316,7 @@ struct CalendarWidgetBundle: WidgetBundle {
 struct CalendarWidget: Widget {
     let kind: String = "CalendarWidget"
     var body: some WidgetConfiguration {
-        AppIntentConfiguration(kind: kind, intent: ChangeMonthIntent.self, provider: Provider()) { entry in
+        AppIntentConfiguration(kind: kind, intent: ConfigurationIntent.self, provider: Provider()) { entry in
             CalendarWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("당무 캘린더")
