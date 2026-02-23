@@ -40,12 +40,20 @@ struct WidgetConstants {
               let data = jsonString.data(using: .utf8) else {
             return []
         }
+        
         do {
-            return try JSONDecoder().decode([CalendarEntity].self, from: data)
+            // Manual parsing for higher resilience
+            if let array = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                return array.compactMap { dict in
+                    guard let id = dict["id"] as? String,
+                          let title = dict["title"] as? String else { return nil }
+                    return CalendarEntity(id: id, title: title)
+                }
+            }
         } catch {
-            print("WIDGET_DEBUG: JSON decode failed: \(error)")
-            return []
+            print("WIDGET_DEBUG: JSONSerialization failed: \(error)")
         }
+        return []
     }
 
     static func getCachedSchedules() -> [Schedule] {
@@ -82,19 +90,22 @@ struct CalendarQuery: EntityQuery {
     
     func suggestedEntities() async throws -> [CalendarEntity] {
         let all = WidgetConstants.getAllCalendars()
-        print("WIDGET_DEBUG: Suggested entities count: \(all.count)")
+        if all.isEmpty {
+            // Provide a dummy entity to prevent the picker from cancelling
+            return [CalendarEntity(id: "default", title: "기본 캘린더 (연결 대기중)")]
+        }
         return all
     }
     
     func entity(for identifier: String) async throws -> CalendarEntity? {
+        if identifier == "default" { return CalendarEntity(id: "default", title: "기본 캘린더 (연결 대기중)") }
         return WidgetConstants.getAllCalendars().first { $0.id == identifier }
     }
     
     func defaultResult() async -> CalendarEntity? {
         let all = WidgetConstants.getAllCalendars()
+        if all.isEmpty { return CalendarEntity(id: "default", title: "기본 캘린더 (연결 대기중)") }
         let recentId = WidgetConstants.getRecentCalendarId()
-        print("WIDGET_DEBUG: Default result search. RecentId: \(recentId ?? "nil"), AllCount: \(all.count)")
-        // Prioritize the calendar that was last selected/synced from the App
         return all.first { $0.id == recentId } ?? all.first
     }
 }
@@ -175,11 +186,12 @@ struct Provider: AppIntentTimelineProvider {
             if let configCal = configuration.calendar { return configCal }
             let all = WidgetConstants.getAllCalendars()
             let recentId = WidgetConstants.getRecentCalendarId()
-            return all.first { $0.id == recentId } ?? all.first
+            let found = all.first { $0.id == recentId } ?? all.first
+            return found ?? CalendarEntity(id: "default", title: "기본 캘린더")
         }()
 
         var fetchedSchedules: [Schedule] = []
-        if let cal = targetCalendar {
+        if let cal = targetCalendar, cal.id != "default" {
             let urlStr = "\(supabaseBaseUrl)?calendar_id=eq.\(cal.id)&select=*"
             if let url = URL(string: urlStr), let sKey = supabaseKey.data(using: .utf8) {
                 var request = URLRequest(url: url)

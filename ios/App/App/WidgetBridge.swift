@@ -16,7 +16,10 @@ public class WidgetBridge: CAPPlugin {
             defaults.set(authToken, forKey: "supabaseAuthToken")
             defaults.set(calendarsJson, forKey: "allCalendarsJson")
             defaults.set(schedulesJson, forKey: "cachedSchedulesJson")
-            defaults.synchronize()
+            
+            // Force synchronization for immediate widget access
+            let success = defaults.synchronize()
+            print("WIDGET_BRIDGE: Saved data. Calendars length: \(calendarsJson.count), Schedules length: \(schedulesJson.count), Sync Success: \(success)")
             
             // Trigger widget refresh
             WidgetCenter.shared.reloadAllTimelines()
