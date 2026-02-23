@@ -731,11 +731,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const session = await DataManager.checkSession();
     
     if (session) {
-        DataManager.updateWidgetCalendar();
         loginModal.style.display = 'none';
         appContainer.style.filter = 'none';
         initializeCalendar();
         checkInvite();
+        // Sync widget after everything is initialized
+        setTimeout(() => DataManager.updateWidgetCalendar(), 1000);
     } else if (isRedirecting) {
         console.log("Detected redirect hash, waiting for auth processing...");
         // Do NOT show modal. Wait for onAuthStateChange to fire.
@@ -1339,6 +1340,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (window.Capacitor) {
             window.Capacitor.Plugins.App.addListener('appUrlOpen', (data) => {
                 window.handleDeepLink(data.url);
+            });
+            // Sync widget when app returns to foreground
+            window.Capacitor.Plugins.App.addListener('appStateChange', (state) => {
+                if (state.isActive) {
+                    console.log("App became active, syncing widget...");
+                    DataManager.updateWidgetCalendar();
+                }
             });
         }
     }

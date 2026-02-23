@@ -16,28 +16,28 @@ struct WidgetConstants {
     static let cachedSchedulesJsonKey = "cachedSchedulesJson"
     static let authTokenKey = "supabaseAuthToken"
     
-    static var sharedDefaults: UserDefaults? {
-        UserDefaults(suiteName: appGroup)
+    static var sharedDefaults: UserDefaults {
+        UserDefaults(suiteName: appGroup) ?? UserDefaults.standard
     }
     
     static func getOffset() -> Int {
-        sharedDefaults?.integer(forKey: offsetKey) ?? 0
+        sharedDefaults.integer(forKey: offsetKey)
     }
     
     static func setOffset(_ value: Int) {
-        sharedDefaults?.set(value, forKey: offsetKey)
+        sharedDefaults.set(value, forKey: offsetKey)
     }
 
     static func getRecentCalendarId() -> String? {
-        sharedDefaults?.string(forKey: selectedCalendarKey)
+        sharedDefaults.string(forKey: selectedCalendarKey)
     }
     
     static func getAuthToken() -> String? {
-        sharedDefaults?.string(forKey: authTokenKey)
+        sharedDefaults.string(forKey: authTokenKey)
     }
     
     static func getAllCalendars() -> [CalendarEntity] {
-        guard let jsonString = sharedDefaults?.string(forKey: allCalendarsJsonKey),
+        guard let jsonString = sharedDefaults.string(forKey: allCalendarsJsonKey),
               let data = jsonString.data(using: .utf8) else {
             return []
         }
@@ -50,12 +50,12 @@ struct WidgetConstants {
                     return CalendarEntity(id: id, title: title)
                 }
             }
-        } catch { print("WIDGET_DEBUG: JSONSerialization failed: \(error)") }
+        } catch { print("WIDGET_DEBUG: JSON parse failed") }
         return []
     }
 
     static func getCachedSchedules() -> [Schedule] {
-        guard let jsonString = sharedDefaults?.string(forKey: cachedSchedulesJsonKey),
+        guard let jsonString = sharedDefaults.string(forKey: cachedSchedulesJsonKey),
               let data = jsonString.data(using: .utf8) else { return [] }
         return (try? JSONDecoder().decode([Schedule].self, from: data)) ?? []
     }
@@ -87,19 +87,19 @@ struct CalendarQuery: EntityQuery {
     func suggestedEntities() async throws -> [CalendarEntity] {
         let all = WidgetConstants.getAllCalendars()
         if all.isEmpty {
-            return [CalendarEntity(id: "default", title: "캘린더를 앱에서 먼저 열어주세요")]
+            return [CalendarEntity(id: "default", title: "앱을 먼저 실행해주세요")]
         }
         return all
     }
     
     func entity(for identifier: String) async throws -> CalendarEntity? {
-        if identifier == "default" { return CalendarEntity(id: "default", title: "캘린더를 앱에서 먼저 열어주세요") }
+        if identifier == "default" { return CalendarEntity(id: "default", title: "앱을 먼저 실행해주세요") }
         return WidgetConstants.getAllCalendars().first { $0.id == identifier }
     }
     
     func defaultResult() async -> CalendarEntity? {
         let all = WidgetConstants.getAllCalendars()
-        if all.isEmpty { return CalendarEntity(id: "default", title: "캘린더를 앱에서 먼저 열어주세요") }
+        if all.isEmpty { return CalendarEntity(id: "default", title: "앱을 먼저 실행해주세요") }
         let recentId = WidgetConstants.getRecentCalendarId()
         return all.first { $0.id == recentId } ?? all.first
     }
@@ -112,10 +112,6 @@ struct Schedule: Decodable, Identifiable {
     let start_date: String
     let end_date: String
     let color: String?
-    
-    enum CodingKeys: String, CodingKey {
-        case id, text, start_date, end_date, color
-    }
 }
 
 struct CalendarEntry: TimelineEntry {
@@ -125,7 +121,6 @@ struct CalendarEntry: TimelineEntry {
     let displayMonth: Date
     let currentOffset: Int
     let calendarTitle: String?
-    let errorMessage: String?
 }
 
 // MARK: - 4. AppIntents for Interaction
@@ -170,11 +165,11 @@ struct Provider: AppIntentTimelineProvider {
     ]
 
     func placeholder(in context: Context) -> CalendarEntry {
-        CalendarEntry(date: Date(), schedules: [], holidays: [], displayMonth: Date(), currentOffset: 0, calendarTitle: "캘린더", errorMessage: nil)
+        CalendarEntry(date: Date(), schedules: [], holidays: [], displayMonth: Date(), currentOffset: 0, calendarTitle: "캘린더")
     }
 
     func snapshot(for configuration: ConfigurationIntent, in context: Context) async -> CalendarEntry {
-        CalendarEntry(date: Date(), schedules: [], holidays: [], displayMonth: Date(), currentOffset: 0, calendarTitle: "캘린더", errorMessage: nil)
+        CalendarEntry(date: Date(), schedules: [], holidays: [], displayMonth: Date(), currentOffset: 0, calendarTitle: "캘린더")
     }
 
     func timeline(for configuration: ConfigurationIntent, in context: Context) async -> Timeline<CalendarEntry> {
@@ -185,7 +180,6 @@ struct Provider: AppIntentTimelineProvider {
         let allCalendars = WidgetConstants.getAllCalendars()
         let recentId = WidgetConstants.getRecentCalendarId()
 
-        // 1. User config > 2. App's recent > 3. First available
         let targetCalendar: CalendarEntity? = {
             if let configCal = configuration.calendar, configCal.id != "default" { return configCal }
             if let recentId = recentId, let found = allCalendars.first(where: { $0.id == recentId }) { return found }
@@ -193,8 +187,6 @@ struct Provider: AppIntentTimelineProvider {
         }()
 
         var fetchedSchedules: [Schedule] = []
-        var errorMsg: String? = nil
-        
         let isGuest = targetCalendar?.id.hasPrefix("guest-") ?? false
         
         if let cal = targetCalendar, cal.id != "default" && !isGuest {
@@ -209,14 +201,13 @@ struct Provider: AppIntentTimelineProvider {
                 
                 do {
                     let (data, response) = try await URLSession.shared.data(for: request)
-                    if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                    if (response as? HTTPURLResponse)?.statusCode == 200 {
                         fetchedSchedules = try JSONDecoder().decode([Schedule].self, from: data)
                     }
                 } catch { print("WIDGET_DEBUG: Network fetch failed") }
             }
         }
         
-        // CRITICAL FALLBACK: Use app's cached data if network failed or returned nothing
         if fetchedSchedules.isEmpty {
             fetchedSchedules = WidgetConstants.getCachedSchedules()
         }
@@ -231,8 +222,7 @@ struct Provider: AppIntentTimelineProvider {
             holidays: holidays,
             displayMonth: displayMonth, 
             currentOffset: offset,
-            calendarTitle: targetCalendar?.title,
-            errorMessage: fetchedSchedules.isEmpty ? "일정 없음" : nil
+            calendarTitle: targetCalendar?.title
         )
         let nextUpdate = Calendar.current.date(byAdding: .minute, value: 30, to: currentDate)!
         return Timeline(entries: [entry], policy: .after(nextUpdate))
@@ -246,7 +236,7 @@ struct CalendarWidgetEntryView : View {
     @Environment(\.widgetFamily) var family
 
     let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
-    let weekdays = ["S", "M", "T", "W", "T", "F", "S"]
+    let weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -274,7 +264,7 @@ struct CalendarWidgetEntryView : View {
             Spacer()
             let todayEvents = eventsFor(date: entry.date)
             if todayEvents.isEmpty {
-                Text("일정 없음").font(.system(size: 10)).foregroundColor(.gray)
+                Text("No events").font(.system(size: 10)).foregroundColor(.gray)
             } else {
                 ForEach(todayEvents.prefix(2)) { ev in
                     Text(ev.text)
@@ -327,26 +317,24 @@ struct CalendarWidgetEntryView : View {
 
             LazyVGrid(columns: columns, spacing: 0) {
                 ForEach(0..<7) { i in
-                    Text(weekdays[i])
-                        .font(.system(size: 10, weight: .bold))
+                    Text(weekdays[i].prefix(1))
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundColor(i == 0 ? .red : (i == 6 ? .blue : .gray))
                         .frame(maxWidth: .infinity)
                 }
             }
-            .padding(.bottom, 4)
+            .padding(.bottom, 6)
 
             let days = generateDays(for: entry.displayMonth)
             LazyVGrid(columns: columns, spacing: 0) {
-                ForEach(0..<42, id: \.self) { index in
-                    if index < days.count {
-                        dateCell(days[index])
-                            .border(Color.gray.opacity(0.1), width: 0.5)
-                    } else {
-                        Color.clear.frame(height: 38)
-                    }
+                ForEach(0..<days.count, id: \.self) { index in
+                    let date = days[index]
+                    dateCell(date)
+                        .border(Color.gray.opacity(0.1), width: 0.5)
                 }
             }
             .cornerRadius(4)
+            .clipped()
         }
     }
 
@@ -364,7 +352,7 @@ struct CalendarWidgetEntryView : View {
                     .frame(width: 18, height: 18)
                     .background(isToday ? Circle().fill(Color.red.opacity(0.8)) : nil)
                     .background(isToday ? nil : (holiday != nil && isCurrentMonth ? Circle().fill(Color.red.opacity(0.1)) : nil))
-
+                
                 VStack(spacing: 1) {
                     let daySchedules = entry.schedules.filter { isWithin(date: date, event: $0) }
                     if isCurrentMonth {
@@ -387,7 +375,9 @@ struct CalendarWidgetEntryView : View {
 
     func isWithin(date: Date, event: Schedule) -> Bool {
         let ds = formatDate(date)
-        return event.start_date <= ds && event.end_date >= ds
+        let eventStart = String(event.start_date.prefix(10))
+        let eventEnd = String(event.end_date.prefix(10))
+        return eventStart <= ds && eventEnd >= ds
     }
 
     func monthAbbr(_ date: Date) -> String {
@@ -417,7 +407,9 @@ struct CalendarWidgetEntryView : View {
 
     func eventsFor(date: Date) -> [Schedule] {
         let ds = formatDate(date)
-        return (entry.holidays + entry.schedules).filter { $0.start_date <= ds && $0.end_date >= ds }
+        return (entry.holidays + entry.schedules).filter { 
+            String($0.start_date.prefix(10)) <= ds && String($0.end_date.prefix(10)) >= ds 
+        }
     }
 }
 
