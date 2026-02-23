@@ -438,6 +438,9 @@ const DataManager = {
             calendarId: item.calendar_id
         })) : [];
         
+        // Sync with widget after schedules are loaded
+        this.updateWidgetCalendar();
+        
         return this.schedules;
     },
 
@@ -724,16 +727,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Check Session (Initial Load)
+    const isRedirecting = window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('refresh_token'));
     const session = await DataManager.checkSession();
     
-            // Detect if we are in an OAuth redirect (Hash contains access_token)
-            if (isRedirecting) {
-                console.log("Redirecting, will sync widget after session is established.");
-            } else {
-                DataManager.updateWidgetCalendar();
-            }
-    
-            const session = await DataManager.checkSession();        loginModal.style.display = 'none';
+    if (session) {
+        DataManager.updateWidgetCalendar();
+        loginModal.style.display = 'none';
         appContainer.style.filter = 'none';
         initializeCalendar();
         checkInvite();

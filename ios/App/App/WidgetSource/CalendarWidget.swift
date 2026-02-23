@@ -44,8 +44,9 @@ struct WidgetConstants {
         do {
             if let array = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
                 return array.compactMap { dict in
-                    guard let id = dict["id"] as? String,
-                          let title = dict["title"] as? String else { return nil }
+                    let id = (dict["id"] as? String) ?? ""
+                    let title = (dict["title"] as? String) ?? ""
+                    if id.isEmpty { return nil }
                     return CalendarEntity(id: id, title: title)
                 }
             }
