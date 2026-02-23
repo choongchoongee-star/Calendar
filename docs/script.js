@@ -726,12 +726,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Check Session (Initial Load)
     const session = await DataManager.checkSession();
     
-    // Detect if we are in an OAuth redirect (Hash contains access_token)
-    // This prevents showing the login modal while Supabase is still processing the URL
-    const isRedirecting = window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('refresh_token'));
-
-    if (session) {
-        loginModal.style.display = 'none';
+            // Detect if we are in an OAuth redirect (Hash contains access_token)
+            if (isRedirecting) {
+                console.log("Redirecting, will sync widget after session is established.");
+            } else {
+                DataManager.updateWidgetCalendar();
+            }
+    
+            const session = await DataManager.checkSession();        loginModal.style.display = 'none';
         appContainer.style.filter = 'none';
         initializeCalendar();
         checkInvite();
