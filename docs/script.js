@@ -763,12 +763,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const drawerOverlay = document.getElementById('drawer-overlay');
         const calendarList = document.getElementById('calendar-list');
         const createCalendarBtn = document.getElementById('create-calendar-btn');
+        const drawerLoginBtn = document.getElementById('drawer-login-btn');
         const logoutBtn = document.getElementById('logout-btn');
 
         // Settings Elements
         const settingsBtn = document.getElementById('settings-btn');
         const settingsModal = document.getElementById('settings-modal');
         const closeSettingsBtn = document.querySelector('.settings-close');
+        const settingsLoginBtn = document.getElementById('settings-login-btn');
         const settingsLogoutBtn = document.getElementById('settings-logout-btn');
         const deleteAccountBtn = document.getElementById('delete-account-btn');
         const shareLinkBtn = document.getElementById('share-link-btn');
@@ -961,10 +963,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         logoutBtn.onclick = () => DataManager.signOut();
         settingsLogoutBtn.onclick = () => DataManager.signOut();
 
+        const showLoginModal = () => {
+            const loginModal = document.getElementById('login-modal');
+            const appContainer = document.getElementById('app');
+            loginModal.style.display = 'flex';
+            appContainer.style.filter = 'blur(5px)';
+            // Ensure sidebar and settings close when login opens
+            drawer.style.display = 'none';
+            drawerOverlay.style.display = 'none';
+            settingsModal.style.display = 'none';
+        };
+
+        drawerLoginBtn.onclick = showLoginModal;
+        settingsLoginBtn.onclick = showLoginModal;
+
         if (DataManager.isGuest) {
             logoutBtn.style.display = 'none';
             settingsLogoutBtn.style.display = 'none';
             deleteAccountBtn.style.display = 'none';
+            drawerLoginBtn.style.display = 'block';
+            settingsLoginBtn.style.display = 'block';
         }
 
         deleteAccountBtn.onclick = async () => {
