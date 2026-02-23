@@ -32,12 +32,19 @@ struct WidgetConstants {
     }
     
     static func getAllCalendars() -> [CalendarEntity] {
-        guard let raw = UserDefaults(suiteName: appGroup)?.array(forKey: allCalendarsKey) else { return [] }
+        let defaults = UserDefaults(suiteName: appGroup) ?? UserDefaults.standard
+        guard let raw = defaults.array(forKey: allCalendarsKey) else {
+            print("WIDGET_DEBUG: No allCalendars found in UserDefaults")
+            return []
+        }
+        print("WIDGET_DEBUG: Raw calendars found, count: \(raw.count)")
         return raw.compactMap { item in
-            // Use [String: Any] and safe casting for better resilience
             guard let dict = item as? [String: Any],
                   let id = dict["id"] as? String,
-                  let title = dict["title"] as? String else { return nil }
+                  let title = dict["title"] as? String else { 
+                print("WIDGET_DEBUG: Failed to cast calendar item: \(item)")
+                return nil 
+            }
             return CalendarEntity(id: id, title: title)
         }
     }
@@ -156,23 +163,38 @@ struct Provider: AppIntentTimelineProvider {
 
         var fetchedSchedules: [Schedule] = []
         if let cal = targetCalendar {
+            print("WIDGET_DEBUG: Fetching schedules for calendar: \(cal.id) (\(cal.title))")
             let urlStr = "\(supabaseBaseUrl)?calendar_id=eq.\(cal.id)&select=*"
             if let url = URL(string: urlStr) {
                 var request = URLRequest(url: url)
-                request.timeoutInterval = 10
-                request.addValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
-                request.addValue(supabaseKey, forHTTPHeaderField: "apikey")
+                request.timeoutInterval = 15
                 
-                // Add Auth Token if available to bypass RLS
-                if let token = WidgetConstants.getAuthToken(), !token.isEmpty {
-                    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                }
+                // Use apiKey header for Supabase anon key
+                request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
+                
+                // Use Auth Token if available to bypass RLS, otherwise use anon key
+                let token = WidgetConstants.getAuthToken()
+                let authValue = (token != nil && !token!.isEmpty) ? "Bearer \(token!)" : "Bearer \(supabaseKey)"
+                request.setValue(authValue, forHTTPHeaderField: "Authorization")
                 
                 do {
-                    let (data, _) = try await URLSession.shared.data(for: request)
-                    fetchedSchedules = try JSONDecoder().decode([Schedule].self, from: data)
-                } catch { print("Fetch error: \(error)") }
+                    let (data, response) = try await URLSession.shared.data(for: request)
+                    if let httpResponse = response as? HTTPURLResponse {
+                        print("WIDGET_DEBUG: HTTP Status: \(httpResponse.statusCode)")
+                        if httpResponse.statusCode == 200 {
+                            fetchedSchedules = try JSONDecoder().decode([Schedule].self, from: data)
+                            print("WIDGET_DEBUG: Successfully fetched \(fetchedSchedules.count) schedules")
+                        } else {
+                            let errorBody = String(data: data, encoding: .utf8) ?? ""
+                            print("WIDGET_DEBUG: Fetch failed body: \(errorBody)")
+                        }
+                    }
+                } catch { 
+                    print("WIDGET_DEBUG: Fetch error: \(error)") 
+                }
             }
+        } else {
+            print("WIDGET_DEBUG: No target calendar selected for timeline")
         }
 
         let holidays = holidayData.map { h in

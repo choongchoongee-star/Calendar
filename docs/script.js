@@ -224,8 +224,8 @@ const DataManager = {
             
             if (!this.currentCalendarId && this.calendars.length > 0) {
                 this.currentCalendarId = this.calendars[0].id;
-                this.updateWidgetCalendar();
             }
+            this.updateWidgetCalendar();
             return this.calendars;
         }
 
@@ -249,8 +249,10 @@ const DataManager = {
         // Select first calendar by default if none selected
         if (!this.currentCalendarId && this.calendars.length > 0) {
             this.currentCalendarId = this.calendars[0].id;
-            this.updateWidgetCalendar();
         }
+        
+        // Always sync with widget when calendars are fetched
+        this.updateWidgetCalendar();
         
         return this.calendars;
     },
@@ -287,8 +289,8 @@ const DataManager = {
         // Auto-select the new calendar
         if (data && data.length > 0) {
             this.currentCalendarId = data[0].id;
-            this.updateWidgetCalendar();
         }
+        this.updateWidgetCalendar();
     },
 
     async updateCalendar(id, title) {
