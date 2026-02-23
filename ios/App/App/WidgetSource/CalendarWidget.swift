@@ -70,7 +70,9 @@ struct CalendarQuery: EntityQuery {
     }
     
     func suggestedEntities() async throws -> [CalendarEntity] {
-        return WidgetConstants.getAllCalendars()
+        let all = WidgetConstants.getAllCalendars()
+        print("WIDGET_DEBUG: Suggested entities count: \(all.count)")
+        return all
     }
     
     func entity(for identifier: String) async throws -> CalendarEntity? {
@@ -80,6 +82,8 @@ struct CalendarQuery: EntityQuery {
     func defaultResult() async -> CalendarEntity? {
         let all = WidgetConstants.getAllCalendars()
         let recentId = WidgetConstants.getRecentCalendarId()
+        print("WIDGET_DEBUG: Default result search. RecentId: \(recentId ?? "nil"), AllCount: \(all.count)")
+        // Prioritize the calendar that was last selected/synced from the App
         return all.first { $0.id == recentId } ?? all.first
     }
 }
@@ -156,9 +160,19 @@ struct Provider: AppIntentTimelineProvider {
         let offset = WidgetConstants.getOffset()
         let displayMonth = Calendar.current.date(byAdding: .month, value: offset, to: currentDate) ?? currentDate
         
-        let targetCalendar = configuration.calendar ?? {
+        // 1. Check user configuration
+        // 2. Fallback to app's recent selection
+        // 3. Fallback to first available calendar
+        let targetCalendar: CalendarEntity? = {
+            if let configCal = configuration.calendar {
+                print("WIDGET_DEBUG: Using user-configured calendar: \(configCal.title)")
+                return configCal
+            }
+            let all = WidgetConstants.getAllCalendars()
             let recentId = WidgetConstants.getRecentCalendarId()
-            return WidgetConstants.getAllCalendars().first { $0.id == recentId }
+            let found = all.first { $0.id == recentId } ?? all.first
+            print("WIDGET_DEBUG: Using fallback calendar: \(found?.title ?? "none")")
+            return found
         }()
 
         var fetchedSchedules: [Schedule] = []
