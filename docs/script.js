@@ -732,8 +732,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }, 10000);
     } else {
-        loginModal.style.display = 'flex';
-        appContainer.style.filter = 'blur(5px)';
+        // Auto-enable Guest Mode instead of showing login modal
+        await DataManager.enableGuestMode();
+        loginModal.style.display = 'none';
+        appContainer.style.filter = 'none';
+        initializeCalendar();
+        checkInvite();
     }
 
     function initializeCalendar() {
@@ -956,6 +960,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         logoutBtn.onclick = () => DataManager.signOut();
         settingsLogoutBtn.onclick = () => DataManager.signOut();
+
+        if (DataManager.isGuest) {
+            logoutBtn.style.display = 'none';
+            settingsLogoutBtn.style.display = 'none';
+            deleteAccountBtn.style.display = 'none';
+        }
 
         deleteAccountBtn.onclick = async () => {
             if (confirm("정말로 계정을 탈퇴하시겠습니까?\n작성하신 모든 캘린더와 일정 데이터가 영구적으로 삭제됩니다.")) {
