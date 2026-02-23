@@ -35,10 +35,22 @@ const DataManager = {
         if (window.Capacitor && window.Capacitor.isNativePlatform()) {
             const WidgetBridge = window.Capacitor.Plugins.WidgetBridge;
             if (WidgetBridge) {
-                // Send selection, list, and auth token for RLS
+                // Prepare calendars for serialization
+                const calendarList = this.calendars.map(c => ({ id: c.id, title: c.title }));
+                
+                // Prepare schedules for serialization (format specifically for widget)
+                const scheduleList = this.schedules.map(s => ({
+                    id: s.id,
+                    text: s.text,
+                    start_date: s.startDate,
+                    end_date: s.endDate,
+                    color: s.color || "#5DA2D5"
+                }));
+
                 WidgetBridge.setSelectedCalendar({ 
                     calendarId: this.currentCalendarId || "",
-                    calendars: this.calendars.map(c => ({ id: c.id, title: c.title })),
+                    calendarsJson: JSON.stringify(calendarList),
+                    schedulesJson: JSON.stringify(scheduleList),
                     authToken: (this.session && this.session.access_token) ? this.session.access_token : ""
                 });
             }
@@ -83,8 +95,11 @@ const DataManager = {
         // Ensure at least one default calendar exists for guest
         const guestCalendars = JSON.parse(localStorage.getItem('guest_calendars') || '[]');
         if (guestCalendars.length === 0) {
-            this.createCalendar("내 캘린더");
+            await this.createCalendar("내 캘린더");
+        } else if (!this.currentCalendarId) {
+            this.currentCalendarId = guestCalendars[0].id;
         }
+        this.updateWidgetCalendar();
     },
 
     async signIn(provider) {

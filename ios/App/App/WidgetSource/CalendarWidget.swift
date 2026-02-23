@@ -31,27 +31,33 @@ struct WidgetConstants {
         UserDefaults(suiteName: appGroup)?.string(forKey: authTokenKey)
     }
     
+    static let allCalendarsJsonKey = "allCalendarsJson"
+    static let cachedSchedulesJsonKey = "cachedSchedulesJson"
+
     static func getAllCalendars() -> [CalendarEntity] {
         let defaults = UserDefaults(suiteName: appGroup) ?? UserDefaults.standard
-        guard let raw = defaults.array(forKey: allCalendarsKey) else {
-            print("WIDGET_DEBUG: No allCalendars found in UserDefaults")
+        guard let jsonString = defaults.string(forKey: allCalendarsJsonKey),
+              let data = jsonString.data(using: .utf8) else {
             return []
         }
-        print("WIDGET_DEBUG: Raw calendars found, count: \(raw.count)")
-        return raw.compactMap { item in
-            guard let dict = item as? [String: Any],
-                  let id = dict["id"] as? String,
-                  let title = dict["title"] as? String else { 
-                print("WIDGET_DEBUG: Failed to cast calendar item: \(item)")
-                return nil 
-            }
-            return CalendarEntity(id: id, title: title)
+        do {
+            return try JSONDecoder().decode([CalendarEntity].self, from: data)
+        } catch {
+            print("WIDGET_DEBUG: JSON decode failed: \(error)")
+            return []
         }
+    }
+
+    static func getCachedSchedules() -> [Schedule] {
+        let defaults = UserDefaults(suiteName: appGroup) ?? UserDefaults.standard
+        guard let jsonString = defaults.string(forKey: cachedSchedulesJsonKey),
+              let data = jsonString.data(using: .utf8) else { return [] }
+        return (try? JSONDecoder().decode([Schedule].self, from: data)) ?? []
     }
 }
 
 // MARK: - 2. App Entities for Configuration
-struct CalendarEntity: AppEntity, Identifiable {
+struct CalendarEntity: AppEntity, Identifiable, Decodable {
     var id: String
     var title: String
     
@@ -60,6 +66,11 @@ struct CalendarEntity: AppEntity, Identifiable {
     
     var displayRepresentation: DisplayRepresentation {
         DisplayRepresentation(title: "\(title)")
+    }
+    
+    // Explicit Codable keys
+    enum CodingKeys: String, CodingKey {
+        case id, title
     }
 }
 
@@ -160,55 +171,37 @@ struct Provider: AppIntentTimelineProvider {
         let offset = WidgetConstants.getOffset()
         let displayMonth = Calendar.current.date(byAdding: .month, value: offset, to: currentDate) ?? currentDate
         
-        // 1. Check user configuration
-        // 2. Fallback to app's recent selection
-        // 3. Fallback to first available calendar
         let targetCalendar: CalendarEntity? = {
-            if let configCal = configuration.calendar {
-                print("WIDGET_DEBUG: Using user-configured calendar: \(configCal.title)")
-                return configCal
-            }
+            if let configCal = configuration.calendar { return configCal }
             let all = WidgetConstants.getAllCalendars()
             let recentId = WidgetConstants.getRecentCalendarId()
-            let found = all.first { $0.id == recentId } ?? all.first
-            print("WIDGET_DEBUG: Using fallback calendar: \(found?.title ?? "none")")
-            return found
+            return all.first { $0.id == recentId } ?? all.first
         }()
 
         var fetchedSchedules: [Schedule] = []
         if let cal = targetCalendar {
-            print("WIDGET_DEBUG: Fetching schedules for calendar: \(cal.id) (\(cal.title))")
             let urlStr = "\(supabaseBaseUrl)?calendar_id=eq.\(cal.id)&select=*"
-            if let url = URL(string: urlStr) {
+            if let url = URL(string: urlStr), let sKey = supabaseKey.data(using: .utf8) {
                 var request = URLRequest(url: url)
-                request.timeoutInterval = 15
-                
-                // Use apiKey header for Supabase anon key
+                request.timeoutInterval = 7
                 request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
-                
-                // Use Auth Token if available to bypass RLS, otherwise use anon key
                 let token = WidgetConstants.getAuthToken()
                 let authValue = (token != nil && !token!.isEmpty) ? "Bearer \(token!)" : "Bearer \(supabaseKey)"
                 request.setValue(authValue, forHTTPHeaderField: "Authorization")
                 
                 do {
                     let (data, response) = try await URLSession.shared.data(for: request)
-                    if let httpResponse = response as? HTTPURLResponse {
-                        print("WIDGET_DEBUG: HTTP Status: \(httpResponse.statusCode)")
-                        if httpResponse.statusCode == 200 {
-                            fetchedSchedules = try JSONDecoder().decode([Schedule].self, from: data)
-                            print("WIDGET_DEBUG: Successfully fetched \(fetchedSchedules.count) schedules")
-                        } else {
-                            let errorBody = String(data: data, encoding: .utf8) ?? ""
-                            print("WIDGET_DEBUG: Fetch failed body: \(errorBody)")
-                        }
+                    if (response as? HTTPURLResponse)?.statusCode == 200 {
+                        fetchedSchedules = try JSONDecoder().decode([Schedule].self, from: data)
                     }
-                } catch { 
-                    print("WIDGET_DEBUG: Fetch error: \(error)") 
-                }
+                } catch { print("WIDGET_DEBUG: Network fetch failed, will use cache if available") }
             }
-        } else {
-            print("WIDGET_DEBUG: No target calendar selected for timeline")
+        }
+        
+        // CRITICAL FALLBACK: Use app's cached data if network failed or returned nothing
+        if fetchedSchedules.isEmpty {
+            fetchedSchedules = WidgetConstants.getCachedSchedules()
+            print("WIDGET_DEBUG: Using \(fetchedSchedules.count) cached schedules from App")
         }
 
         let holidays = holidayData.map { h in
