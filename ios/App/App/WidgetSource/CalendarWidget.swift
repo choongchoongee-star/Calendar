@@ -37,10 +37,11 @@ struct WidgetConstants {
     }
     
     static func getAllCalendars() -> [CalendarEntity] {
-        guard let jsonString = sharedDefaults.string(forKey: allCalendarsJsonKey),
-              let data = jsonString.data(using: .utf8) else {
-            return []
-        }
+        let appGroup = "group.com.dangmoo.calendar"
+        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) else { return [] }
+        let fileURL = containerURL.appendingPathComponent("calendars.json")
+        
+        guard let data = try? Data(contentsOf: fileURL) else { return [] }
         do {
             if let array = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
                 return array.compactMap { dict in
@@ -55,8 +56,11 @@ struct WidgetConstants {
     }
 
     static func getCachedSchedules() -> [Schedule] {
-        guard let jsonString = sharedDefaults.string(forKey: cachedSchedulesJsonKey),
-              let data = jsonString.data(using: .utf8) else { return [] }
+        let appGroup = "group.com.dangmoo.calendar"
+        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) else { return [] }
+        let fileURL = containerURL.appendingPathComponent("schedules.json")
+        
+        guard let data = try? Data(contentsOf: fileURL) else { return [] }
         return (try? JSONDecoder().decode([Schedule].self, from: data)) ?? []
     }
 }
@@ -251,24 +255,24 @@ struct CalendarWidgetEntryView : View {
         }
     }
 
-    var smallView: some View {
+    func smallView: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack {
-                Text(monthAbbr(entry.date)).font(.system(size: 14, weight: .bold)).foregroundColor(.red)
+                Text(monthAbbr(entry.date)).font(.system(size: 16, weight: .bold)).foregroundColor(.red)
                 Spacer()
                 if let title = entry.calendarTitle {
-                    Text(title).font(.system(size: 8)).foregroundColor(.gray).lineLimit(1)
+                    Text(title).font(.system(size: 9)).foregroundColor(.gray).lineLimit(1)
                 }
             }
-            Text("\(Calendar.current.component(.day, from: entry.date))").font(.system(size: 28, weight: .heavy))
+            Text("\(Calendar.current.component(.day, from: entry.date))").font(.system(size: 34, weight: .heavy))
             Spacer()
             let todayEvents = eventsFor(date: entry.date)
             if todayEvents.isEmpty {
-                Text("No events").font(.system(size: 10)).foregroundColor(.gray)
+                Text("일정 없음").font(.system(size: 11)).foregroundColor(.gray)
             } else {
                 ForEach(todayEvents.prefix(2)) { ev in
                     Text(ev.text)
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: 10, weight: .medium))
                         .lineLimit(1)
                         .padding(.horizontal, 4)
                         .background(RoundedRectangle(cornerRadius: 2).fill(Color(hex: ev.color ?? "#5DA2D5").opacity(0.2)))

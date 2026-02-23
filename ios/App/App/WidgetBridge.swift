@@ -11,21 +11,26 @@ public class WidgetBridge: CAPPlugin {
         let authToken = call.getString("authToken") ?? ""
         let appGroup = "group.com.dangmoo.calendar"
         
+        // 1. Save to UserDefaults for simple flags
         if let defaults = UserDefaults(suiteName: appGroup) {
             defaults.set(calendarId, forKey: "selectedCalendarId")
             defaults.set(authToken, forKey: "supabaseAuthToken")
-            defaults.set(calendarsJson, forKey: "allCalendarsJson")
-            defaults.set(schedulesJson, forKey: "cachedSchedulesJson")
-            
-            // Force synchronization for immediate widget access
-            let success = defaults.synchronize()
-            print("WIDGET_BRIDGE: Saved data. Calendars length: \(calendarsJson.count), Schedules length: \(schedulesJson.count), Sync Success: \(success)")
-            
-            // Trigger widget refresh
-            WidgetCenter.shared.reloadAllTimelines()
-            call.resolve()
-        } else {
-            call.reject("Could not access App Group")
+            defaults.synchronize()
         }
+
+        // 2. Save large data to Shared File Container (More reliable than UserDefaults)
+        if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) {
+            let calendarsURL = containerURL.appendingPathComponent("calendars.json")
+            let schedulesURL = containerURL.appendingPathComponent("schedules.json")
+            
+            try? calendarsJson.write(to: calendarsURL, atomically: true, encoding: .utf8)
+            try? schedulesJson.write(to: schedulesURL, atomically: true, encoding: .utf8)
+            
+            print("WIDGET_BRIDGE: Files written to shared container.")
+        }
+        
+        // 3. Force Widget Refresh
+        WidgetCenter.shared.reloadAllTimelines()
+        call.resolve()
     }
 }

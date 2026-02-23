@@ -735,8 +735,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         appContainer.style.filter = 'none';
         initializeCalendar();
         checkInvite();
-        // Sync widget after everything is initialized
-        setTimeout(() => DataManager.updateWidgetCalendar(), 1000);
+        // Force an immediate sync after initialization
+        setTimeout(() => {
+            console.log("Initial widget sync...");
+            DataManager.updateWidgetCalendar();
+        }, 1500);
     } else if (isRedirecting) {
         console.log("Detected redirect hash, waiting for auth processing...");
         // Do NOT show modal. Wait for onAuthStateChange to fire.
