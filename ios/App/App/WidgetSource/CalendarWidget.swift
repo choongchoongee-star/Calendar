@@ -182,21 +182,26 @@ struct Provider: AppIntentTimelineProvider {
         let offset = WidgetConstants.getOffset()
         let displayMonth = Calendar.current.date(byAdding: .month, value: offset, to: currentDate) ?? currentDate
         
+        let allCalendars = WidgetConstants.getAllCalendars()
+        let recentId = WidgetConstants.getRecentCalendarId()
+
+        // 1. User config > 2. App's recent > 3. First available
         let targetCalendar: CalendarEntity? = {
             if let configCal = configuration.calendar, configCal.id != "default" { return configCal }
-            let all = WidgetConstants.getAllCalendars()
-            let recentId = WidgetConstants.getRecentCalendarId()
-            return all.first { $0.id == recentId } ?? all.first
+            if let recentId = recentId, let found = allCalendars.first(where: { $0.id == recentId }) { return found }
+            return allCalendars.first
         }()
 
         var fetchedSchedules: [Schedule] = []
         var errorMsg: String? = nil
         
-        if let cal = targetCalendar, cal.id != "default" {
+        let isGuest = targetCalendar?.id.hasPrefix("guest-") ?? false
+        
+        if let cal = targetCalendar, cal.id != "default" && !isGuest {
             let urlStr = "\(supabaseBaseUrl)?calendar_id=eq.\(cal.id)&select=*"
             if let url = URL(string: urlStr) {
                 var request = URLRequest(url: url)
-                request.timeoutInterval = 8
+                request.timeoutInterval = 7
                 request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
                 let token = WidgetConstants.getAuthToken()
                 let authValue = (token != nil && !token!.isEmpty) ? "Bearer \(token!)" : "Bearer \(supabaseKey)"
@@ -206,18 +211,12 @@ struct Provider: AppIntentTimelineProvider {
                     let (data, response) = try await URLSession.shared.data(for: request)
                     if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
                         fetchedSchedules = try JSONDecoder().decode([Schedule].self, from: data)
-                    } else {
-                        errorMsg = "서버 연결 오류"
                     }
-                } catch { 
-                    errorMsg = "네트워크 확인 필요" 
-                }
+                } catch { print("WIDGET_DEBUG: Network fetch failed") }
             }
-        } else {
-            errorMsg = "앱에서 캘린더를 선택해주세요"
         }
         
-        // Use cache if fetch failed or returned nothing
+        // CRITICAL FALLBACK: Use app's cached data if network failed or returned nothing
         if fetchedSchedules.isEmpty {
             fetchedSchedules = WidgetConstants.getCachedSchedules()
         }
@@ -233,7 +232,7 @@ struct Provider: AppIntentTimelineProvider {
             displayMonth: displayMonth, 
             currentOffset: offset,
             calendarTitle: targetCalendar?.title,
-            errorMessage: errorMsg
+            errorMessage: fetchedSchedules.isEmpty ? "일정 없음" : nil
         )
         let nextUpdate = Calendar.current.date(byAdding: .minute, value: 30, to: currentDate)!
         return Timeline(entries: [entry], policy: .after(nextUpdate))

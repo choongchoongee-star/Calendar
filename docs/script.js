@@ -1262,25 +1262,26 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } else {
                     if (editingGroupId) await DataManager.deleteSchedulesByGroupId(editingGroupId);
                     else if (editingScheduleId) await DataManager.deleteSchedule(editingScheduleId);
-                    await DataManager.addSchedule(payload);
-                }
-                await DataManager.fetchSchedules();
-                await DataManager.syncToCloud();
-                closeAddScheduleModal();
-                renderCalendar();
-            } catch (e) { alert("오류: " + e.message); }
-        }
-
-        async function deleteSchedule(id) {
-            if (!confirm("삭제하시겠습니까?")) return;
-            try {
-                await DataManager.deleteSchedule(id);
-                await DataManager.fetchSchedules();
-                await DataManager.syncToCloud();
-                renderCalendar();
-            } catch (e) { alert("삭제 실패"); }
-        }
-
+                                    await DataManager.addSchedule(payload);
+                                }
+                                await DataManager.fetchSchedules();
+                                DataManager.updateWidgetCalendar(); // Force widget sync after data change
+                                await DataManager.syncToCloud();
+                                closeAddScheduleModal();
+                                renderCalendar();
+                            } catch (e) { alert("오류: " + e.message); }
+                        }
+                    
+                        async function deleteSchedule(id) {
+                            if (!confirm("삭제하시겠습니까?")) return;
+                            try {
+                                await DataManager.deleteSchedule(id);
+                                await DataManager.fetchSchedules();
+                                DataManager.updateWidgetCalendar(); // Force widget sync after data change
+                                await DataManager.syncToCloud();
+                                renderCalendar();
+                            } catch (e) { alert("삭제 실패"); }
+                        }
         // --- Event Listeners ---
         prevMonthButton.onclick = () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); };
         nextMonthButton.onclick = () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); };
