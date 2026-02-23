@@ -61,7 +61,9 @@ struct WidgetConstants {
         let fileURL = containerURL.appendingPathComponent("schedules.json")
         
         guard let data = try? Data(contentsOf: fileURL) else { return [] }
-        return (try? JSONDecoder().decode([Schedule].self, from: data)) ?? []
+        // Use a more resilient decoder that ignores unknown keys
+        let decoder = JSONDecoder()
+        return (try? decoder.decode([Schedule].self, from: data)) ?? []
     }
 }
 
@@ -97,13 +99,13 @@ struct CalendarQuery: EntityQuery {
     }
     
     func entity(for identifier: String) async throws -> CalendarEntity? {
-        if identifier == "default" { return CalendarEntity(id: "default", title: "앱을 먼저 실행해주세요") }
+        if identifier == "default" { return nil }
         return WidgetConstants.getAllCalendars().first { $0.id == identifier }
     }
     
     func defaultResult() async -> CalendarEntity? {
         let all = WidgetConstants.getAllCalendars()
-        if all.isEmpty { return CalendarEntity(id: "default", title: "앱을 먼저 실행해주세요") }
+        if all.isEmpty { return nil }
         let recentId = WidgetConstants.getRecentCalendarId()
         return all.first { $0.id == recentId } ?? all.first
     }
@@ -255,7 +257,7 @@ struct CalendarWidgetEntryView : View {
         }
     }
 
-    func smallView: some View {
+    var smallView: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack {
                 Text(monthAbbr(entry.date)).font(.system(size: 16, weight: .bold)).foregroundColor(.red)
@@ -331,10 +333,13 @@ struct CalendarWidgetEntryView : View {
 
             let days = generateDays(for: entry.displayMonth)
             LazyVGrid(columns: columns, spacing: 0) {
-                ForEach(0..<days.count, id: \.self) { index in
-                    let date = days[index]
-                    dateCell(date)
-                        .border(Color.gray.opacity(0.1), width: 0.5)
+                ForEach(0..<42, id: \.self) { index in
+                    if index < days.count {
+                        dateCell(days[index])
+                            .border(Color.gray.opacity(0.1), width: 0.5)
+                    } else {
+                        Color.clear.frame(height: 38)
+                    }
                 }
             }
             .cornerRadius(4)
@@ -379,6 +384,7 @@ struct CalendarWidgetEntryView : View {
 
     func isWithin(date: Date, event: Schedule) -> Bool {
         let ds = formatDate(date)
+        // Ensure robust date string comparison by only using the first 10 characters (YYYY-MM-DD)
         let eventStart = String(event.start_date.prefix(10))
         let eventEnd = String(event.end_date.prefix(10))
         return eventStart <= ds && eventEnd >= ds

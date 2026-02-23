@@ -42,8 +42,8 @@ const DataManager = {
                 const scheduleList = this.schedules.map(s => ({
                     id: s.id,
                     text: s.text,
-                    start_date: s.startDate,
-                    end_date: s.endDate,
+                    start_date: s.startDate.substring(0, 10), // Clean YYYY-MM-DD
+                    end_date: s.endDate.substring(0, 10),     // Clean YYYY-MM-DD
                     color: s.color || "#5DA2D5"
                 }));
 
