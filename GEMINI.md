@@ -13,7 +13,10 @@ A responsive, cross-platform calendar application built with Vanilla JS, HTML5, 
 - **App Group:** `group.com.dangmoo.calendar` (Shared data between App and Widget).
 
 ## Key Features & Deep Links
-- **Guest Mode:** LocalStorage-based persistence (`isGuest`, `guest_calendars`, `guest_schedules`).
+- **Guest Mode:** 
+    - Auto-enabled on initial access if no user session is detected.
+    - LocalStorage-based persistence (`isGuest`, `guest_calendars`, `guest_schedules`).
+    - UI elements for Logout and Account Deletion are hidden in this mode.
 - **Supabase Mode:** Real-time sync, Google/Apple Auth.
 - **Recurrence:** Daily, Weekly, Yearly (grouped via `group_id`).
 - **iOS Widget:**
