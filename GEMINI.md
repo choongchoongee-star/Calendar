@@ -49,6 +49,10 @@ The App communicates with the Widget by saving JSON data to the shared `UserDefa
 - **Provisioning:**
     - App: `Calendar`
     - Widget: `Dangmoo Calendar Widget`
+- **Git & Build Policy (CRITICAL):**
+    - **Do NOT push to `main` for intermediate tasks.** Pushing to `main` triggers a GitHub Action that builds and uploads the iOS app to TestFlight, which has daily limits.
+    - Always work and push on the **`dev`** branch for iterative changes.
+    - Only merge to and push on **`main`** when a major feature is verified and ready for an official iOS build.
 
 ## Development Guidelines
 - Always update `GEMINI.md` after adding features.
