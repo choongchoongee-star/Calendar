@@ -35,21 +35,18 @@ const DataManager = {
         if (window.Capacitor && window.Capacitor.isNativePlatform()) {
             const WidgetBridge = window.Capacitor.Plugins.WidgetBridge;
             if (WidgetBridge) {
-                // Ensure we have some schedules to send, even if not fetched yet
-                let dataToSync = this.schedules;
-                if (dataToSync.length === 0) {
-                    const stored = localStorage.getItem(this.isGuest ? 'guest_schedules' : 'schedules_cache');
+                // Priority: memory state > localStorage cache
+                let rawData = this.schedules;
+                if (rawData.length === 0) {
+                    const cacheKey = this.isGuest ? 'guest_schedules' : 'schedules_cache';
+                    const stored = localStorage.getItem(cacheKey);
                     if (stored) {
                         try {
-                            const parsed = JSON.parse(stored);
-                            dataToSync = parsed.map(item => ({
-                                id: item.id,
-                                text: item.text,
-                                startDate: item.start_date || item.startDate,
-                                endDate: item.end_date || item.endDate,
-                                color: item.color
-                            }));
-                        } catch (e) {}
+                            rawData = JSON.parse(stored);
+                            console.log(`Widget Sync: Using cached data from ${cacheKey}, count: ${rawData.length}`);
+                        } catch (e) {
+                            console.error("Widget Sync: Cache parse failed", e);
+                        }
                     }
                 }
 
@@ -59,14 +56,20 @@ const DataManager = {
                     title: c.title 
                 }));
                 
-                // Prepare schedules for serialization (format specifically for widget)
-                const scheduleList = dataToSync.map(s => ({
-                    id: String(s.id),
-                    text: s.text,
-                    start_date: (s.startDate || "").substring(0, 10), // Clean YYYY-MM-DD
-                    end_date: (s.endDate || "").substring(0, 10),     // Clean YYYY-MM-DD
-                    color: s.color || "#5DA2D5"
-                })).filter(s => s.start_date !== "");
+                // Prepare schedules - match exactly what Swift Schedule struct expects
+                const scheduleList = rawData.map(s => {
+                    const sDate = s.start_date || s.startDate || "";
+                    const eDate = s.end_date || s.endDate || "";
+                    return {
+                        id: String(s.id),
+                        text: s.text || "",
+                        start_date: sDate.substring(0, 10), // Ensure YYYY-MM-DD
+                        end_date: eDate.substring(0, 10),   // Ensure YYYY-MM-DD
+                        color: s.color || "#5DA2D5"
+                    };
+                }).filter(s => s.start_date.length === 10);
+
+                console.log(`Widget Sync: Sending ${scheduleList.length} schedules to Bridge`);
 
                 WidgetBridge.setSelectedCalendar({ 
                     calendarId: this.currentCalendarId ? String(this.currentCalendarId) : "",
