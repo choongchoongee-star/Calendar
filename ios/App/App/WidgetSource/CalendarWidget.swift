@@ -41,17 +41,14 @@ struct WidgetConstants {
         guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) else { return [] }
         let fileURL = containerURL.appendingPathComponent("calendars.json")
         
-        guard let data = try? Data(contentsOf: fileURL) else { 
-            print("WIDGET_DEBUG: No calendars.json found at \(fileURL)")
-            return [] 
-        }
+        guard let data = try? Data(contentsOf: fileURL) else { return [] }
         do {
             let decoder = JSONDecoder()
             return try decoder.decode([CalendarEntity].self, from: data)
         } catch { 
-            print("WIDGET_DEBUG: Calendars JSON parse failed: \(error)") 
+            print("WIDGET_DEBUG: Calendars decode failed: \(error)") 
+            return []
         }
-        return []
     }
 
     static func getCachedSchedules() -> [Schedule] {
@@ -59,17 +56,16 @@ struct WidgetConstants {
         guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) else { return [] }
         let fileURL = containerURL.appendingPathComponent("schedules.json")
         
-        guard let data = try? Data(contentsOf: fileURL) else { 
-            print("WIDGET_DEBUG: No schedules.json found at \(fileURL)")
-            return [] 
-        }
+        guard let data = try? Data(contentsOf: fileURL) else { return [] }
         do {
             let decoder = JSONDecoder()
-            return try decoder.decode([Schedule].self, from: data)
+            let list = try decoder.decode([Schedule].self, from: data)
+            print("WIDGET_DEBUG: Loaded \(list.count) schedules")
+            return list
         } catch { 
-            print("WIDGET_DEBUG: Schedules JSON parse failed: \(error)") 
+            print("WIDGET_DEBUG: Schedules decode failed: \(error)") 
+            return []
         }
-        return []
     }
 }
 
@@ -96,18 +92,12 @@ struct CalendarEntity: AppEntity, Identifiable, Decodable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        // Robust ID decoding
+        if let sId = try? container.decode(String.self, forKey: .id) { self.id = sId }
+        else if let iId = try? container.decode(Int.self, forKey: .id) { self.id = String(iId) }
+        else { self.id = UUID().uuidString }
         
-        // Handle id as String or Int
-        if let stringId = try? container.decode(String.self, forKey: .id) {
-            self.id = stringId
-        } else if let intId = try? container.decode(Int.self, forKey: .id) {
-            self.id = String(intId)
-        } else {
-            // Default or throw
-            self.id = ""
-        }
-        
-        self.title = try container.decode(String.self, forKey: .title)
+        self.title = (try? container.decode(String.self, forKey: .title)) ?? "알 수 없는 캘린더"
     }
 }
 
@@ -161,18 +151,14 @@ struct Schedule: Decodable, Identifiable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         
-        // Handle id as String or Int
-        if let stringId = try? container.decode(String.self, forKey: .id) {
-            self.id = stringId
-        } else if let intId = try? container.decode(Int.self, forKey: .id) {
-            self.id = String(intId)
-        } else {
-            self.id = ""
-        }
+        // Super Robust Decoding: Never throw an error
+        if let sId = try? container.decode(String.self, forKey: .id) { self.id = sId }
+        else if let iId = try? container.decode(Int.self, forKey: .id) { self.id = String(iId) }
+        else { self.id = UUID().uuidString }
         
-        self.text = try container.decode(String.self, forKey: .text)
-        self.start_date = try container.decode(String.self, forKey: .start_date)
-        self.end_date = try container.decode(String.self, forKey: .end_date)
+        self.text = (try? container.decode(String.self, forKey: .text)) ?? ""
+        self.start_date = (try? container.decode(String.self, forKey: .start_date)) ?? ""
+        self.end_date = (try? container.decode(String.self, forKey: .end_date)) ?? ""
         self.color = try? container.decode(String.self, forKey: .color)
     }
 }
@@ -364,7 +350,10 @@ struct CalendarWidgetEntryView : View {
                 Text(monthAbbr(entry.displayMonth))
                     .font(.system(size: 18, weight: .bold))
                 if let title = entry.calendarTitle {
-                    Text(title).font(.system(size: 9, weight: .bold)).foregroundColor(.blue).lineLimit(1)
+                    Text("\(title) (\(entry.schedules.count))")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.blue)
+                        .lineLimit(1)
                 }
             }
             .foregroundColor(colorScheme == .dark ? .white : .black)
@@ -463,7 +452,7 @@ struct CalendarWidgetEntryView : View {
                                 ForEach(daySchedules.prefix(2)) { ev in
                                     RoundedRectangle(cornerRadius: 1)
                                         .fill(Color(hex: ev.color ?? "#5DA2D5"))
-                                        .frame(height: 2)
+                                        .frame(height: 4)
                                         .padding(.horizontal, 2)
                                 }
                             }
