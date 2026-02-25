@@ -35,6 +35,24 @@ const DataManager = {
         if (window.Capacitor && window.Capacitor.isNativePlatform()) {
             const WidgetBridge = window.Capacitor.Plugins.WidgetBridge;
             if (WidgetBridge) {
+                // Ensure we have some schedules to send, even if not fetched yet
+                let dataToSync = this.schedules;
+                if (dataToSync.length === 0) {
+                    const stored = localStorage.getItem(this.isGuest ? 'guest_schedules' : 'schedules_cache');
+                    if (stored) {
+                        try {
+                            const parsed = JSON.parse(stored);
+                            dataToSync = parsed.map(item => ({
+                                id: item.id,
+                                text: item.text,
+                                startDate: item.start_date || item.startDate,
+                                endDate: item.end_date || item.endDate,
+                                color: item.color
+                            }));
+                        } catch (e) {}
+                    }
+                }
+
                 // Prepare calendars for serialization
                 const calendarList = this.calendars.map(c => ({ 
                     id: String(c.id), 
@@ -42,13 +60,13 @@ const DataManager = {
                 }));
                 
                 // Prepare schedules for serialization (format specifically for widget)
-                const scheduleList = this.schedules.map(s => ({
+                const scheduleList = dataToSync.map(s => ({
                     id: String(s.id),
                     text: s.text,
-                    start_date: s.startDate.substring(0, 10), // Clean YYYY-MM-DD
-                    end_date: s.endDate.substring(0, 10),     // Clean YYYY-MM-DD
+                    start_date: (s.startDate || "").substring(0, 10), // Clean YYYY-MM-DD
+                    end_date: (s.endDate || "").substring(0, 10),     // Clean YYYY-MM-DD
                     color: s.color || "#5DA2D5"
-                }));
+                })).filter(s => s.start_date !== "");
 
                 WidgetBridge.setSelectedCalendar({ 
                     calendarId: this.currentCalendarId ? String(this.currentCalendarId) : "",
@@ -440,6 +458,9 @@ const DataManager = {
             color: item.color,
             calendarId: item.calendar_id
         })) : [];
+        
+        // Cache for widget sync if needed
+        localStorage.setItem('schedules_cache', JSON.stringify(data || []));
         
         // Sync with widget after schedules are loaded
         this.updateWidgetCalendar();
@@ -1343,9 +1364,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                             openScheduleListModal(dateStr);
                         }
                     } else if (url.host === 'add') {
-                        // Open add modal for today
-                        const todayStr = CalendarUtils.formatDate(new Date());
-                        openAddScheduleModal(todayStr);
+                        // Support vibe://add?date=YYYY-MM-DD
+                        let targetDateStr = url.searchParams.get('date');
+                        if (!targetDateStr) {
+                             targetDateStr = CalendarUtils.formatDate(new Date());
+                        }
+                        
+                        // Set calendar view to that month first
+                        const d = new Date(targetDateStr + 'T00:00:00');
+                        currentDate = d;
+                        renderCalendar();
+                        
+                        openAddScheduleModal(targetDateStr);
                     }
                 }
             } catch (e) {

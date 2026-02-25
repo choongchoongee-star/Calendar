@@ -249,31 +249,8 @@ struct Provider: AppIntentTimelineProvider {
             return allCalendars.first
         }()
 
-        var fetchedSchedules: [Schedule] = []
-        let isGuest = targetCalendar?.id.hasPrefix("guest-") ?? false
-        
-        if let cal = targetCalendar, cal.id != "default" && !isGuest {
-            let urlStr = "\(supabaseBaseUrl)?calendar_id=eq.\(cal.id)&select=*"
-            if let url = URL(string: urlStr) {
-                var request = URLRequest(url: url)
-                request.timeoutInterval = 7
-                request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
-                let token = WidgetConstants.getAuthToken()
-                let authValue = (token != nil && !token!.isEmpty) ? "Bearer \(token!)" : "Bearer \(supabaseKey)"
-                request.setValue(authValue, forHTTPHeaderField: "Authorization")
-                
-                do {
-                    let (data, response) = try await URLSession.shared.data(for: request)
-                    if (response as? HTTPURLResponse)?.statusCode == 200 {
-                        fetchedSchedules = try JSONDecoder().decode([Schedule].self, from: data)
-                    }
-                } catch { print("WIDGET_DEBUG: Network fetch failed") }
-            }
-        }
-        
-        if fetchedSchedules.isEmpty {
-            fetchedSchedules = WidgetConstants.getCachedSchedules()
-        }
+        // Use cached schedules provided by the app (reliable method)
+        let fetchedSchedules = WidgetConstants.getCachedSchedules()
 
         let holidays = holidayData.map { h in
             Schedule(id: "h-\(h.0)", text: h.2, start_date: h.0, end_date: h.1, color: "#E74C3C")
@@ -287,6 +264,7 @@ struct Provider: AppIntentTimelineProvider {
             currentOffset: offset,
             calendarTitle: targetCalendar?.title
         )
+        // Refresh every 30 minutes
         let nextUpdate = Calendar.current.date(byAdding: .minute, value: 30, to: currentDate)!
         return Timeline(entries: [entry], policy: .after(nextUpdate))
     }
@@ -320,7 +298,7 @@ struct CalendarWidgetEntryView : View {
                 Text(monthAbbr(entry.date)).font(.system(size: 16, weight: .bold)).foregroundColor(.red)
                 Spacer()
                 if let title = entry.calendarTitle {
-                    Text(title).font(.system(size: 9)).foregroundColor(.gray).lineLimit(1)
+                    Text(title).font(.system(size: 9)).foregroundColor(.blue).lineLimit(1)
                 }
             }
             Text("\(Calendar.current.component(.day, from: entry.date))").font(.system(size: 34, weight: .heavy))
@@ -366,8 +344,9 @@ struct CalendarWidgetEntryView : View {
 
                 Spacer()
                 
-                HStack(spacing: 12) {
-                    Link(destination: URL(string: "vibe://add")!) {
+                HStack(spacing: 14) {
+                    // Deep link with date context
+                    Link(destination: URL(string: "vibe://add?date=\(formatDate(entry.displayMonth))")!) {
                         Image(systemName: "plus").font(.system(size: 16, weight: .bold))
                     }
                     Button(intent: RefreshWidgetIntent()) {
@@ -415,8 +394,8 @@ struct CalendarWidgetEntryView : View {
                 Text("\(Calendar.current.component(.day, from: date))")
                     .font(.system(size: 10, weight: isToday ? .bold : .regular))
                     .foregroundColor(textColor(date: date, isCurrentMonth: isCurrentMonth, isSunday: isSunday, isHoliday: holiday != nil))
-                    .frame(width: 18, height: 18)
-                    .background(isToday ? Circle().fill(Color.red.opacity(0.8)) : nil)
+                    .frame(width: 20, height: 20)
+                    .background(isToday ? Circle().fill(Color.red) : nil)
                     .background(isToday ? nil : (holiday != nil && isCurrentMonth ? Circle().fill(Color.red.opacity(0.1)) : nil))
                 
                 VStack(spacing: 1) {
