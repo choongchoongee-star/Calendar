@@ -41,17 +41,16 @@ struct WidgetConstants {
         guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) else { return [] }
         let fileURL = containerURL.appendingPathComponent("calendars.json")
         
-        guard let data = try? Data(contentsOf: fileURL) else { return [] }
+        guard let data = try? Data(contentsOf: fileURL) else { 
+            print("WIDGET_DEBUG: No calendars.json found at \(fileURL)")
+            return [] 
+        }
         do {
-            if let array = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-                return array.compactMap { dict in
-                    let id = (dict["id"] as? String) ?? ""
-                    let title = (dict["title"] as? String) ?? ""
-                    if id.isEmpty { return nil }
-                    return CalendarEntity(id: id, title: title)
-                }
-            }
-        } catch { print("WIDGET_DEBUG: JSON parse failed") }
+            let decoder = JSONDecoder()
+            return try decoder.decode([CalendarEntity].self, from: data)
+        } catch { 
+            print("WIDGET_DEBUG: Calendars JSON parse failed: \(error)") 
+        }
         return []
     }
 
@@ -60,10 +59,17 @@ struct WidgetConstants {
         guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) else { return [] }
         let fileURL = containerURL.appendingPathComponent("schedules.json")
         
-        guard let data = try? Data(contentsOf: fileURL) else { return [] }
-        // Use a more resilient decoder that ignores unknown keys
-        let decoder = JSONDecoder()
-        return (try? decoder.decode([Schedule].self, from: data)) ?? []
+        guard let data = try? Data(contentsOf: fileURL) else { 
+            print("WIDGET_DEBUG: No schedules.json found at \(fileURL)")
+            return [] 
+        }
+        do {
+            let decoder = JSONDecoder()
+            return try decoder.decode([Schedule].self, from: data)
+        } catch { 
+            print("WIDGET_DEBUG: Schedules JSON parse failed: \(error)") 
+        }
+        return []
     }
 }
 
@@ -81,6 +87,27 @@ struct CalendarEntity: AppEntity, Identifiable, Decodable {
     
     enum CodingKeys: String, CodingKey {
         case id, title
+    }
+
+    init(id: String, title: String) {
+        self.id = id
+        self.title = title
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Handle id as String or Int
+        if let stringId = try? container.decode(String.self, forKey: .id) {
+            self.id = stringId
+        } else if let intId = try? container.decode(Int.self, forKey: .id) {
+            self.id = String(intId)
+        } else {
+            // Default or throw
+            self.id = ""
+        }
+        
+        self.title = try container.decode(String.self, forKey: .title)
     }
 }
 
@@ -118,6 +145,36 @@ struct Schedule: Decodable, Identifiable {
     let start_date: String
     let end_date: String
     let color: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, text, start_date, end_date, color
+    }
+
+    init(id: String, text: String, start_date: String, end_date: String, color: String?) {
+        self.id = id
+        self.text = text
+        self.start_date = start_date
+        self.end_date = end_date
+        self.color = color
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Handle id as String or Int
+        if let stringId = try? container.decode(String.self, forKey: .id) {
+            self.id = stringId
+        } else if let intId = try? container.decode(Int.self, forKey: .id) {
+            self.id = String(intId)
+        } else {
+            self.id = ""
+        }
+        
+        self.text = try container.decode(String.self, forKey: .text)
+        self.start_date = try container.decode(String.self, forKey: .start_date)
+        self.end_date = try container.decode(String.self, forKey: .end_date)
+        self.color = try? container.decode(String.self, forKey: .color)
+    }
 }
 
 struct CalendarEntry: TimelineEntry {

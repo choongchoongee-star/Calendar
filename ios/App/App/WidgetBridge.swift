@@ -23,10 +23,15 @@ public class WidgetBridge: CAPPlugin {
             let calendarsURL = containerURL.appendingPathComponent("calendars.json")
             let schedulesURL = containerURL.appendingPathComponent("schedules.json")
             
-            try? calendarsJson.write(to: calendarsURL, atomically: true, encoding: .utf8)
-            try? schedulesJson.write(to: schedulesURL, atomically: true, encoding: .utf8)
-            
-            print("WIDGET_BRIDGE: Files written to shared container.")
+            do {
+                try calendarsJson.write(to: calendarsURL, atomically: true, encoding: .utf8)
+                try schedulesJson.write(to: schedulesURL, atomically: true, encoding: .utf8)
+                print("WIDGET_BRIDGE: Files written successfully to \(containerURL.path)")
+            } catch {
+                print("WIDGET_BRIDGE: ERROR writing files: \(error)")
+            }
+        } else {
+            print("WIDGET_BRIDGE: ERROR - Could not find container URL for app group \(appGroup)")
         }
         
         // 3. Force Widget Refresh

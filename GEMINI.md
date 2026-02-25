@@ -59,3 +59,10 @@ The App communicates with the Widget by saving JSON data to the shared `UserDefa
 - Always update `GEMINI.md` after adding features.
 - Adhere to the `vibe://` deep linking schema.
 - Ensure `WidgetBridge.setSelectedCalendar` is called whenever calendar data or auth state changes.
+
+## 진행 기록 및 피드백
+
+### 2026-02-25: 위젯 일정 미표시 문제 분석 시작
+- **문제 현상:** 앱 내 일정은 정상이나, 위젯에는 기본 달력만 표시되고 개인 일정이 하나도 보이지 않음.
+- **분석 목표:** 데이터 전달 경로(JS -> Bridge -> UserDefaults -> Widget) 및 WidgetKit의 렌더링 로직 검증.
+- **예상 원인:** `UserDefaults`에 일정 데이터(`schedules`)가 누락되었거나, 위젯 Swift 코드에서 일정을 그리는 로직이 미비할 가능성.
