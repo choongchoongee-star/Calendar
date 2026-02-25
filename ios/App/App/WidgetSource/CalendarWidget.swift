@@ -37,11 +37,8 @@ struct WidgetConstants {
     }
     
     static func getAllCalendars() -> [CalendarEntity] {
-        let appGroup = "group.com.dangmoo.calendar"
-        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) else { return [] }
-        let fileURL = containerURL.appendingPathComponent("calendars.json")
-        
-        guard let data = try? Data(contentsOf: fileURL) else { return [] }
+        let json = sharedDefaults.string(forKey: allCalendarsJsonKey) ?? "[]"
+        guard let data = json.data(using: .utf8) else { return [] }
         do {
             let decoder = JSONDecoder()
             return try decoder.decode([CalendarEntity].self, from: data)
@@ -52,15 +49,12 @@ struct WidgetConstants {
     }
 
     static func getCachedSchedules() -> [Schedule] {
-        let appGroup = "group.com.dangmoo.calendar"
-        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) else { return [] }
-        let fileURL = containerURL.appendingPathComponent("schedules.json")
-        
-        guard let data = try? Data(contentsOf: fileURL) else { return [] }
+        let json = sharedDefaults.string(forKey: cachedSchedulesJsonKey) ?? "[]"
+        guard let data = json.data(using: .utf8) else { return [] }
         do {
             let decoder = JSONDecoder()
             let list = try decoder.decode([Schedule].self, from: data)
-            print("WIDGET_DEBUG: Loaded \(list.count) schedules")
+            print("WIDGET_DEBUG: Loaded \(list.count) schedules from UserDefaults")
             return list
         } catch { 
             print("WIDGET_DEBUG: Schedules decode failed: \(error)") 
@@ -248,7 +242,7 @@ struct Provider: AppIntentTimelineProvider {
             holidays: holidays,
             displayMonth: displayMonth, 
             currentOffset: offset,
-            calendarTitle: targetCalendar?.title
+            calendarTitle: targetCalendar?.title ?? "모든 일정"
         )
         // Refresh every 30 minutes
         let nextUpdate = Calendar.current.date(byAdding: .minute, value: 30, to: currentDate)!
