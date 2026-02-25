@@ -35,22 +35,33 @@ const DataManager = {
         if (window.Capacitor && window.Capacitor.isNativePlatform()) {
             const WidgetBridge = window.Capacitor.Plugins.WidgetBridge;
             if (WidgetBridge) {
-                // Ensure we have schedules - prioritize memory, fallback to localStorage
+                // Aggressive data fetching: Check all possible keys
                 let rawSchedules = this.schedules || [];
                 if (rawSchedules.length === 0) {
-                    const cache = localStorage.getItem(this.isGuest ? 'guest_schedules' : 'schedules_cache');
-                    if (cache) {
-                        try { rawSchedules = JSON.parse(cache); } catch(e) {}
-                    }
+                    const guestSch = localStorage.getItem('guest_schedules');
+                    const cloudSch = localStorage.getItem('schedules_cache');
+                    try {
+                        const p1 = guestSch ? JSON.parse(guestSch) : [];
+                        const p2 = cloudSch ? JSON.parse(cloudSch) : [];
+                        rawSchedules = [...p1, ...p2];
+                    } catch(e) {}
                 }
 
-                // Ensure we have calendars
                 let rawCalendars = this.calendars || [];
                 if (rawCalendars.length === 0) {
-                    const calCache = localStorage.getItem(this.isGuest ? 'guest_calendars' : 'calendars_cache');
-                    if (calCache) {
-                        try { rawCalendars = JSON.parse(calCache); } catch(e) {}
-                    }
+                    const guestCal = localStorage.getItem('guest_calendars');
+                    const cloudCal = localStorage.getItem('calendars_cache');
+                    try {
+                        const c1 = guestCal ? JSON.parse(guestCal) : [];
+                        const c2 = cloudCal ? JSON.parse(cloudCal) : [];
+                        rawCalendars = [...c1, ...c2];
+                    } catch(e) {}
+                }
+
+                // If still empty and we are in guest mode, force re-check
+                if (rawCalendars.length === 0 && localStorage.getItem('isGuest') === 'true') {
+                    const stored = localStorage.getItem('guest_calendars');
+                    if (stored) rawCalendars = JSON.parse(stored);
                 }
 
                 // Prepare clean lists
@@ -69,8 +80,9 @@ const DataManager = {
 
                 console.log(`Syncing to Widget: ${scheduleList.length} schedules, ${calendarList.length} calendars`);
 
+                // Send all data to widget
                 WidgetBridge.setSelectedCalendar({ 
-                    calendarId: this.currentCalendarId ? String(this.currentCalendarId) : (calendarList[0] ? calendarList[0].id : ""),
+                    calendarId: this.currentCalendarId ? String(this.currentCalendarId) : (calendarList[0] ? calendarList[0].id : "all"),
                     calendarsJson: JSON.stringify(calendarList),
                     schedulesJson: JSON.stringify(scheduleList),
                     authToken: (this.session && this.session.access_token) ? this.session.access_token : ""
