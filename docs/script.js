@@ -1390,12 +1390,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.Capacitor.Plugins.App.addListener('appUrlOpen', (data) => {
                 window.handleDeepLink(data.url);
             });
-            // Sync widget when app returns to foreground
+            // Sync widget when app returns to foreground OR goes to background
             window.Capacitor.Plugins.App.addListener('appStateChange', (state) => {
-                if (state.isActive) {
-                    console.log("App became active, syncing widget...");
-                    DataManager.updateWidgetCalendar();
-                }
+                console.log("App state changed:", state.isActive ? "Active" : "Background");
+                DataManager.updateWidgetCalendar();
             });
         }
     }
