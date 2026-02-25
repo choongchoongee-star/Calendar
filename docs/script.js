@@ -64,19 +64,27 @@ const DataManager = {
                     if (stored) rawCalendars = JSON.parse(stored);
                 }
 
-                // Prepare clean lists
+                // Prepare clean lists (Failsafe mapping)
                 const calendarList = rawCalendars.map(c => ({ 
-                    id: String(c.id), 
-                    title: c.title || "캘린더" 
+                    id: String(c.id || "default"), 
+                    title: String(c.title || "캘린더") 
                 }));
                 
-                const scheduleList = rawSchedules.map(s => ({
-                    id: String(s.id),
-                    text: s.text || s.title || "일정",
-                    start_date: (s.start_date || s.startDate || "").substring(0, 10),
-                    end_date: (s.end_date || s.endDate || "").substring(0, 10),
-                    color: s.color || "#5DA2D5"
-                })).filter(s => s.start_date.length === 10);
+                const scheduleList = rawSchedules.map(s => {
+                    const idStr = String(s.id || Math.random());
+                    const txtStr = String(s.text || s.title || "일정");
+                    let sd = s.start_date || s.startDate || "";
+                    let ed = s.end_date || s.endDate || sd;
+                    if (typeof sd !== 'string') sd = String(sd);
+                    if (typeof ed !== 'string') ed = String(ed);
+                    return {
+                        id: idStr,
+                        text: txtStr,
+                        start_date: sd.substring(0, 10),
+                        end_date: ed.substring(0, 10),
+                        color: String(s.color || "#5DA2D5")
+                    };
+                }).filter(s => s.start_date.length === 10);
 
                 console.log(`Syncing to Widget: ${scheduleList.length} schedules, ${calendarList.length} calendars`);
 
@@ -86,6 +94,11 @@ const DataManager = {
                     calendarsJson: JSON.stringify(calendarList),
                     schedulesJson: JSON.stringify(scheduleList),
                     authToken: (this.session && this.session.access_token) ? this.session.access_token : ""
+                }).then(() => {
+                    console.log("Widget Sync Success");
+                }).catch(err => {
+                    console.error("Widget Sync Bridge Failed:", err);
+                    alert("위젯 동기화 오류: " + err.message);
                 });
             }
         }
