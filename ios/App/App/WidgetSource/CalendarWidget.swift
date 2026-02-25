@@ -240,7 +240,7 @@ struct Provider: AppIntentTimelineProvider {
             return allCalendars.first
         }()
 
-        // Use cached schedules provided by the app (reliable method)
+        // Use all cached schedules (reliable method, bypass filtering for now)
         let fetchedSchedules = WidgetConstants.getCachedSchedules()
 
         let holidays = holidayData.map { h in
@@ -253,7 +253,7 @@ struct Provider: AppIntentTimelineProvider {
             holidays: holidays,
             displayMonth: displayMonth, 
             currentOffset: offset,
-            calendarTitle: targetCalendar?.title ?? "모든 일정"
+            calendarTitle: targetCalendar?.title ?? (allCalendars.count > 0 ? allCalendars[0].title : "모든 일정")
         )
         // Refresh every 30 minutes
         let nextUpdate = Calendar.current.date(byAdding: .minute, value: 30, to: currentDate)!
