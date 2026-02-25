@@ -475,7 +475,6 @@ struct CalendarWidgetEntryView : View {
         return eventStart <= ds && eventEnd >= ds
     }
 }
-}
 
 // MARK: - 8. Entry Point
 @main
