@@ -383,61 +383,29 @@ struct CalendarWidgetEntryView : View {
         }
     }
 
-    func dateCell(_ date: Date?) -> some View {
-        VStack(spacing: 1) {
-            if let date = date {
-                let isCurrentMonth = Calendar.current.isDate(date, equalTo: entry.displayMonth, toGranularity: .month)
-                let isToday = Calendar.current.isDateInToday(date)
-                let isSunday = Calendar.current.component(.weekday, from: date) == 1
-                let holiday = entry.holidays.first(where: { isWithin(date: date, event: $0) })
-                
-                Text("\(Calendar.current.component(.day, from: date))")
-                    .font(.system(size: 10, weight: isToday ? .bold : .regular))
-                    .foregroundColor(textColor(date: date, isCurrentMonth: isCurrentMonth, isSunday: isSunday, isHoliday: holiday != nil))
-                    .frame(width: 20, height: 20)
-                    .background(isToday ? Circle().fill(Color.red) : nil)
-                    .background(isToday ? nil : (holiday != nil && isCurrentMonth ? Circle().fill(Color.red.opacity(0.1)) : nil))
-                
-                VStack(spacing: 1) {
-                    let daySchedules = entry.schedules.filter { isWithin(date: date, event: $0) }
-                    if isCurrentMonth {
-                        ForEach(daySchedules.prefix(2)) { ev in
-                            RoundedRectangle(cornerRadius: 1)
-                                .fill(Color(hex: ev.color ?? "#5DA2D5"))
-                                .frame(height: 2)
-                                .padding(.horizontal, 2)
-                        }
-                    }
-                }
-                Spacer(minLength: 0)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 38)
-        .contentShape(Rectangle())
-        .widgetURL(date != nil ? URL(string: "vibe://date/\(formatDate(date!))") : nil)
-    }
-
-    func isWithin(date: Date, event: Schedule) -> Bool {
-        let ds = formatDate(date)
-        // Ensure robust date string comparison by only using the first 10 characters (YYYY-MM-DD)
-        let eventStart = String(event.start_date.prefix(10))
-        let eventEnd = String(event.end_date.prefix(10))
-        return eventStart <= ds && eventEnd >= ds
-    }
-
     func monthAbbr(_ date: Date) -> String {
-        let f = DateFormatter(); f.dateFormat = "MMMM"; return f.string(from: date)
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ko_KR") // Month names can be localized
+        f.dateFormat = "MMMM"
+        return f.string(from: date)
     }
     
     func formatDate(_ date: Date) -> String {
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.string(from: date)
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX") // CRITICAL: Fixed format for comparison
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: date)
     }
 
     func textColor(date: Date, isCurrentMonth: Bool, isSunday: Bool, isHoliday: Bool) -> Color {
         if !isCurrentMonth { return Color.gray.opacity(0.3) }
+        if isToday(date) { return .white } // Contrast on red circle
         if isSunday || isHoliday { return .red }
         return colorScheme == .dark ? .white : .black
+    }
+
+    func isToday(_ date: Date) -> Bool {
+        Calendar.current.isDateInToday(date)
     }
 
     func generateDays(for month: Date) -> [Date?] {
@@ -454,9 +422,59 @@ struct CalendarWidgetEntryView : View {
     func eventsFor(date: Date) -> [Schedule] {
         let ds = formatDate(date)
         return (entry.holidays + entry.schedules).filter { 
-            String($0.start_date.prefix(10)) <= ds && String($0.end_date.prefix(10)) >= ds 
+            let start = String($0.start_date.prefix(10))
+            let end = String($0.end_date.prefix(10))
+            return start <= ds && end >= ds 
         }
     }
+
+    func dateCell(_ date: Date?) -> some View {
+        Group {
+            if let date = date {
+                Link(destination: URL(string: "vibe://date/\(formatDate(date))")!) {
+                    VStack(spacing: 1) {
+                        let isCurrentMonth = Calendar.current.isDate(date, equalTo: entry.displayMonth, toGranularity: .month)
+                        let isTodayDate = isToday(date)
+                        let isSunday = Calendar.current.component(.weekday, from: date) == 1
+                        let holiday = entry.holidays.first(where: { isWithin(date: date, event: $0) })
+                        
+                        Text("\(Calendar.current.component(.day, from: date))")
+                            .font(.system(size: 10, weight: isTodayDate ? .bold : .regular))
+                            .foregroundColor(textColor(date: date, isCurrentMonth: isCurrentMonth, isSunday: isSunday, isHoliday: holiday != nil))
+                            .frame(width: 20, height: 20)
+                            .background(isTodayDate ? Circle().fill(Color.red) : nil)
+                            .background(isTodayDate ? nil : (holiday != nil && isCurrentMonth ? Circle().fill(Color.red.opacity(0.1)) : nil))
+                        
+                        VStack(spacing: 1) {
+                            let daySchedules = entry.schedules.filter { isWithin(date: date, event: $0) }
+                            if isCurrentMonth {
+                                ForEach(daySchedules.prefix(2)) { ev in
+                                    RoundedRectangle(cornerRadius: 1)
+                                        .fill(Color(hex: ev.color ?? "#5DA2D5"))
+                                        .frame(height: 2)
+                                        .padding(.horizontal, 2)
+                                }
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 38)
+                    .contentShape(Rectangle())
+                }
+            } else {
+                Color.clear.frame(height: 38)
+            }
+        }
+    }
+
+    func isWithin(date: Date, event: Schedule) -> Bool {
+        let ds = formatDate(date)
+        let eventStart = String(event.start_date.prefix(10))
+        let eventEnd = String(event.end_date.prefix(10))
+        return eventStart <= ds && eventEnd >= ds
+    }
+}
 }
 
 // MARK: - 8. Entry Point
