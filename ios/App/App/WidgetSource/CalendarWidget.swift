@@ -131,7 +131,9 @@ struct Schedule: Decodable, Identifiable {
     let color: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, text, start_date, end_date, color
+        case id, text, color
+        case start_date, startDate
+        case end_date, endDate
     }
 
     init(id: String, text: String, start_date: String, end_date: String, color: String?) {
@@ -145,15 +147,24 @@ struct Schedule: Decodable, Identifiable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         
-        // Super Robust Decoding: Never throw an error
+        // Handle ID
         if let sId = try? container.decode(String.self, forKey: .id) { self.id = sId }
         else if let iId = try? container.decode(Int.self, forKey: .id) { self.id = String(iId) }
         else { self.id = UUID().uuidString }
         
-        self.text = (try? container.decode(String.self, forKey: .text)) ?? ""
-        self.start_date = (try? container.decode(String.self, forKey: .start_date)) ?? ""
-        self.end_date = (try? container.decode(String.self, forKey: .end_date)) ?? ""
-        self.color = try? container.decode(String.self, forKey: .color)
+        self.text = (try? container.decode(String.self, forKey: .text)) ?? "일정"
+        
+        // Handle Start Date (Support both formats)
+        self.start_date = (try? container.decode(String.self, forKey: .start_date)) 
+                       ?? (try? container.decode(String.self, forKey: .startDate)) 
+                       ?? ""
+        
+        // Handle End Date (Support both formats)
+        self.end_date = (try? container.decode(String.self, forKey: .end_date)) 
+                     ?? (try? container.decode(String.self, forKey: .endDate)) 
+                     ?? self.start_date
+        
+        self.color = (try? container.decode(String.self, forKey: .color))
     }
 }
 
@@ -344,7 +355,8 @@ struct CalendarWidgetEntryView : View {
                 Text(monthAbbr(entry.displayMonth))
                     .font(.system(size: 18, weight: .bold))
                 if let title = entry.calendarTitle {
-                    Text("\(title) (\(entry.schedules.count))")
+                    let totalCals = WidgetConstants.getAllCalendars().count
+                    Text("\(title) (\(entry.schedules.count)/\(totalCals))")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundColor(.blue)
                         .lineLimit(1)
