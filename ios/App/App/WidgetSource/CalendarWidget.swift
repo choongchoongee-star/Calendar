@@ -323,41 +323,10 @@ struct CalendarWidgetEntryView : View {
 
     var fullGridView: some View {
         VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(monthAbbr(entry.displayMonth))
-                        .font(.system(size: 18, weight: .bold))
-                    if let title = entry.calendarTitle {
-                        Text(title).font(.system(size: 9, weight: .bold)).foregroundColor(.blue).lineLimit(1)
-                    }
-                }
-                .foregroundColor(colorScheme == .dark ? .white : .black)
-                
-                Spacer()
-                
-                HStack(spacing: 15) {
-                    Button(intent: ChangeMonthIntent(delta: -1)) { Image(systemName: "chevron.left") }
-                    Button(intent: ChangeMonthIntent(delta: 1)) { Image(systemName: "chevron.right") }
-                }
-                .font(.system(size: 14, weight: .bold))
-                .tint(colorScheme == .dark ? .white : .black)
-
-                Spacer()
-                
-                HStack(spacing: 14) {
-                    // Deep link with date context
-                    Link(destination: URL(string: "vibe://add?date=\(formatDate(entry.displayMonth))")!) {
-                        Image(systemName: "plus").font(.system(size: 16, weight: .bold))
-                    }
-                    Button(intent: RefreshWidgetIntent()) {
-                        Image(systemName: "arrow.clockwise").font(.system(size: 14, weight: .bold))
-                    }
-                }
-                .foregroundColor(colorScheme == .dark ? .white : .black)
-            }
-            .padding(.bottom, 8)
-
-            LazyVGrid(columns: columns, spacing: 0) {
+            headerView
+            
+            // Weekdays Header
+            HStack(spacing: 0) {
                 ForEach(0..<7) { i in
                     Text(weekdays[i].prefix(1))
                         .font(.system(size: 10, weight: .medium))
@@ -367,20 +336,62 @@ struct CalendarWidgetEntryView : View {
             }
             .padding(.bottom, 6)
 
+            // Calendar Grid (Manual Rows for Touch Reliability)
             let days = generateDays(for: entry.displayMonth)
-            LazyVGrid(columns: columns, spacing: 0) {
-                ForEach(0..<42, id: \.self) { index in
-                    if index < days.count {
-                        dateCell(days[index])
-                            .border(Color.gray.opacity(0.1), width: 0.5)
-                    } else {
-                        Color.clear.frame(height: 38)
+            VStack(spacing: 0) {
+                ForEach(0..<6, id: \.self) { row in
+                    HStack(spacing: 0) {
+                        ForEach(0..<7, id: \.self) { col in
+                            let index = row * 7 + col
+                            if index < days.count {
+                                dateCell(days[index])
+                                    .border(Color.gray.opacity(0.1), width: 0.5)
+                            } else {
+                                Color.clear.frame(height: 38).frame(maxWidth: .infinity)
+                            }
+                        }
                     }
                 }
             }
             .cornerRadius(4)
             .clipped()
         }
+    }
+
+    var headerView: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(monthAbbr(entry.displayMonth))
+                    .font(.system(size: 18, weight: .bold))
+                if let title = entry.calendarTitle {
+                    Text(title).font(.system(size: 9, weight: .bold)).foregroundColor(.blue).lineLimit(1)
+                }
+            }
+            .foregroundColor(colorScheme == .dark ? .white : .black)
+            
+            Spacer()
+            
+            HStack(spacing: 15) {
+                Button(intent: ChangeMonthIntent(delta: -1)) { Image(systemName: "chevron.left") }
+                Button(intent: ChangeMonthIntent(delta: 1)) { Image(systemName: "chevron.right") }
+            }
+            .font(.system(size: 14, weight: .bold))
+            .tint(colorScheme == .dark ? .white : .black)
+
+            Spacer()
+            
+            HStack(spacing: 14) {
+                // Deep link with date context
+                Link(destination: URL(string: "vibe://add?date=\(formatDate(entry.displayMonth))")!) {
+                    Image(systemName: "plus").font(.system(size: 16, weight: .bold))
+                }
+                Button(intent: RefreshWidgetIntent()) {
+                    Image(systemName: "arrow.clockwise").font(.system(size: 14, weight: .bold))
+                }
+            }
+            .foregroundColor(colorScheme == .dark ? .white : .black)
+        }
+        .padding(.bottom, 8)
     }
 
     func monthAbbr(_ date: Date) -> String {
@@ -431,7 +442,8 @@ struct CalendarWidgetEntryView : View {
     func dateCell(_ date: Date?) -> some View {
         Group {
             if let date = date {
-                Link(destination: URL(string: "vibe://date/\(formatDate(date))")!) {
+                let ds = formatDate(date)
+                Link(destination: URL(string: "vibe://date/\(ds)")!) {
                     VStack(spacing: 1) {
                         let isCurrentMonth = Calendar.current.isDate(date, equalTo: entry.displayMonth, toGranularity: .month)
                         let isTodayDate = isToday(date)
@@ -461,9 +473,10 @@ struct CalendarWidgetEntryView : View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 38)
                     .contentShape(Rectangle())
+                    .background(Color.white.opacity(0.001)) // Essential for hit-testing
                 }
             } else {
-                Color.clear.frame(height: 38)
+                Color.clear.frame(height: 38).frame(maxWidth: .infinity)
             }
         }
     }

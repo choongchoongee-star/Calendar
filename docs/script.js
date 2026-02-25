@@ -480,14 +480,14 @@ const DataManager = {
             const newSchedule = { ...payload, id: 'guest-sch-' + Date.now() + Math.random() };
             schedules.push(newSchedule);
             localStorage.setItem('guest_schedules', JSON.stringify(schedules));
-            this.updateWidgetCalendar();
+            await this.fetchSchedules(); // Refresh memory state first
             return;
         }
 
         if (!this.client) throw new Error("Supabase not initialized");
         const { error } = await this.client.from('schedules').insert([payload]);
         if (error) throw error;
-        this.updateWidgetCalendar();
+        await this.fetchSchedules(); // Refresh memory state before sync
     },
     
     async addSchedules(payloads) {
@@ -499,14 +499,14 @@ const DataManager = {
                 schedules.push({ ...p, id: 'guest-sch-' + Date.now() + Math.random() });
             });
             localStorage.setItem('guest_schedules', JSON.stringify(schedules));
-            this.updateWidgetCalendar();
+            await this.fetchSchedules(); // Refresh memory state first
             return;
         }
 
         if (!this.client) throw new Error("Supabase not initialized");
         const { error } = await this.client.from('schedules').insert(payloads);
         if (error) throw error;
-        this.updateWidgetCalendar();
+        await this.fetchSchedules(); // Refresh memory state before sync
     },
 
     async updateSchedule(id, payload) {
@@ -516,7 +516,7 @@ const DataManager = {
             if (index !== -1) {
                 schedules[index] = { ...schedules[index], ...payload };
                 localStorage.setItem('guest_schedules', JSON.stringify(schedules));
-                this.updateWidgetCalendar();
+                await this.fetchSchedules();
             }
             return;
         }
@@ -524,7 +524,7 @@ const DataManager = {
         if (!this.client) throw new Error("Supabase not initialized");
         const { error } = await this.client.from('schedules').update(payload).eq('id', id);
         if (error) throw error;
-        this.updateWidgetCalendar();
+        await this.fetchSchedules();
     },
 
     async deleteSchedule(id) {
@@ -532,14 +532,14 @@ const DataManager = {
             let schedules = JSON.parse(localStorage.getItem('guest_schedules') || '[]');
             schedules = schedules.filter(s => s.id !== id);
             localStorage.setItem('guest_schedules', JSON.stringify(schedules));
-            this.updateWidgetCalendar();
+            await this.fetchSchedules();
             return;
         }
 
         if (!this.client) throw new Error("Supabase not initialized");
         const { error } = await this.client.from('schedules').delete().eq('id', id);
         if (error) throw error;
-        this.updateWidgetCalendar();
+        await this.fetchSchedules();
     },
 
     async deleteSchedulesByGroupId(groupId) {
@@ -547,14 +547,14 @@ const DataManager = {
             let schedules = JSON.parse(localStorage.getItem('guest_schedules') || '[]');
             schedules = schedules.filter(s => s.group_id !== groupId);
             localStorage.setItem('guest_schedules', JSON.stringify(schedules));
-            this.updateWidgetCalendar();
+            await this.fetchSchedules();
             return;
         }
 
         if (!this.client) throw new Error("Supabase not initialized");
         const { error } = await this.client.from('schedules').delete().eq('group_id', groupId);
         if (error) throw error;
-        this.updateWidgetCalendar();
+        await this.fetchSchedules();
     },
 
     async syncToCloud() {
