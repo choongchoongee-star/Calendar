@@ -70,3 +70,4 @@ The App communicates with the Widget by saving JSON data to the shared `UserDefa
     4.  **로그 시스템 강화:** 위젯 브릿지와 데이터 파싱 시점에 상세 에러 로그(`WIDGET_DEBUG`)를 남겨 원인 파악 용이하도록 개선 (`WidgetBridge.swift`, `CalendarWidget.swift`).
     5.  **배포 자동화:** GitHub Actions 워크플로우를 수정하여 `main` 브랜치 푸시 시 iOS 빌드 및 TestFlight 업로드가 자동으로 실행되도록 변경 (`.github/workflows/ios.yml`).
 - **결과:** 데이터 타입 안정성 확보 및 실시간 위젯 반영 로직 보강. (GitHub Actions를 통한 자동 배포 프로세스 가동)
+- **추가 이슈:** Apple Store Connect로부터 ITMS-90725 경고 수신 (2026년 4월 28일까지 iOS 26 SDK/Xcode 26 요구). 향후 GitHub Actions의 macOS 러너 업데이트에 맞춰 Xcode 버전 상향 조정 필요.
