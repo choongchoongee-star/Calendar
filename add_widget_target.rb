@@ -76,5 +76,16 @@ build_file.settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
 # 7. Add Dependency
 app_target.add_dependency(widget_target)
 
+# 8. ENABLE CAPABILITIES (App Groups)
+attributes = project.root_object.attributes
+attributes['TargetAttributes'] ||= {}
+attributes['TargetCapabilities'] ||= {}
+
+[app_target, widget_target].each do |target|
+  attributes['TargetAttributes'][target.uuid] ||= {}
+  attributes['TargetAttributes'][target.uuid]['SystemCapabilities'] ||= {}
+  attributes['TargetAttributes'][target.uuid]['SystemCapabilities']['com.apple.security.application-groups'] = { 'enabled' => '1' }
+end
+
 project.save
-puts "Successfully force-configured embedding phase for Build #48."
+puts "Successfully configured embedding and App Groups capability."

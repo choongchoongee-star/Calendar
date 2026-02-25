@@ -1360,7 +1360,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (e.target === settingsModal) settingsModal.style.display = 'none';
         };
 
-        loadCalendars(); // Start the chain
+        // Initialize
+        (async () => {
+            console.log("App Initializing: Triggering early widget sync...");
+            DataManager.updateWidgetCalendar(); // Sync immediately with whatever cache exists
+            await loadCalendars();
+            console.log("App Initialized: Final widget sync...");
+            DataManager.updateWidgetCalendar();
+        })();
 
         // --- Deep Linking Support (Widget -> App) ---
         window.handleDeepLink = async (urlStr) => {
