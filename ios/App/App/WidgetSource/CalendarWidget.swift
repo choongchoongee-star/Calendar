@@ -44,7 +44,9 @@ struct WidgetConstants {
             return try decoder.decode([CalendarEntity].self, from: data)
         } catch { 
             print("WIDGET_DEBUG: Calendars decode failed: \(error)") 
-            return []
+            let errString = "\(error)"
+            let dummy = CalendarEntity(id: "err-cal", title: "Err: \(errString.prefix(15))")
+            return [dummy]
         }
     }
 
@@ -58,7 +60,16 @@ struct WidgetConstants {
             return list
         } catch { 
             print("WIDGET_DEBUG: Schedules decode failed: \(error)") 
-            return []
+            
+            // Return a dummy schedule with the error message so the user can see it!
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.dateFormat = "yyyy-MM-dd"
+            let todayStr = f.string(from: Date())
+            
+            let errString = "\(error)"
+            let dummy = Schedule(id: "err1", text: "Parse: \(errString.prefix(15))", start_date: todayStr, end_date: todayStr, color: "#FF0000")
+            return [dummy]
         }
     }
 }
