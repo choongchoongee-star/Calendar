@@ -35,44 +35,42 @@ const DataManager = {
         if (window.Capacitor && window.Capacitor.isNativePlatform()) {
             const WidgetBridge = window.Capacitor.Plugins.WidgetBridge;
             if (WidgetBridge) {
-                // Priority: memory state > localStorage cache
-                let rawData = this.schedules;
-                if (rawData.length === 0) {
-                    const cacheKey = this.isGuest ? 'guest_schedules' : 'schedules_cache';
-                    const stored = localStorage.getItem(cacheKey);
-                    if (stored) {
-                        try {
-                            rawData = JSON.parse(stored);
-                            console.log(`Widget Sync: Using cached data from ${cacheKey}, count: ${rawData.length}`);
-                        } catch (e) {
-                            console.error("Widget Sync: Cache parse failed", e);
-                        }
+                // Ensure we have schedules - prioritize memory, fallback to localStorage
+                let rawSchedules = this.schedules || [];
+                if (rawSchedules.length === 0) {
+                    const cache = localStorage.getItem(this.isGuest ? 'guest_schedules' : 'schedules_cache');
+                    if (cache) {
+                        try { rawSchedules = JSON.parse(cache); } catch(e) {}
                     }
                 }
 
-                // Prepare calendars for serialization
-                const calendarList = this.calendars.map(c => ({ 
+                // Ensure we have calendars
+                let rawCalendars = this.calendars || [];
+                if (rawCalendars.length === 0) {
+                    const calCache = localStorage.getItem(this.isGuest ? 'guest_calendars' : 'calendars_cache');
+                    if (calCache) {
+                        try { rawCalendars = JSON.parse(calCache); } catch(e) {}
+                    }
+                }
+
+                // Prepare clean lists
+                const calendarList = rawCalendars.map(c => ({ 
                     id: String(c.id), 
-                    title: c.title 
+                    title: c.title || "캘린더" 
                 }));
                 
-                // Prepare schedules - match exactly what Swift Schedule struct expects
-                const scheduleList = rawData.map(s => {
-                    const sDate = s.start_date || s.startDate || "";
-                    const eDate = s.end_date || s.endDate || "";
-                    return {
-                        id: String(s.id),
-                        text: s.text || "",
-                        start_date: sDate.substring(0, 10), // Ensure YYYY-MM-DD
-                        end_date: eDate.substring(0, 10),   // Ensure YYYY-MM-DD
-                        color: s.color || "#5DA2D5"
-                    };
-                }).filter(s => s.start_date.length === 10);
+                const scheduleList = rawSchedules.map(s => ({
+                    id: String(s.id),
+                    text: s.text || s.title || "일정",
+                    start_date: (s.start_date || s.startDate || "").substring(0, 10),
+                    end_date: (s.end_date || s.endDate || "").substring(0, 10),
+                    color: s.color || "#5DA2D5"
+                })).filter(s => s.start_date.length === 10);
 
-                console.log(`Widget Sync: Sending ${scheduleList.length} schedules to Bridge`);
+                console.log(`Syncing to Widget: ${scheduleList.length} schedules, ${calendarList.length} calendars`);
 
                 WidgetBridge.setSelectedCalendar({ 
-                    calendarId: this.currentCalendarId ? String(this.currentCalendarId) : "",
+                    calendarId: this.currentCalendarId ? String(this.currentCalendarId) : (calendarList[0] ? calendarList[0].id : ""),
                     calendarsJson: JSON.stringify(calendarList),
                     schedulesJson: JSON.stringify(scheduleList),
                     authToken: (this.session && this.session.access_token) ? this.session.access_token : ""
