@@ -34,6 +34,12 @@ const DataManager = {
     updateWidgetCalendar() {
         if (window.Capacitor && window.Capacitor.isNativePlatform()) {
             const WidgetBridge = window.Capacitor.Plugins.WidgetBridge;
+            if (!WidgetBridge) {
+                console.error("WidgetBridge plugin NOT FOUND");
+                // Temporary alert for user diagnosis
+                // alert("시스템: 위젯 연동 플러그인을 찾을 수 없습니다.");
+                return;
+            }
             if (WidgetBridge) {
                 // Aggressive data fetching: Check all possible keys
                 let rawSchedules = this.schedules || [];

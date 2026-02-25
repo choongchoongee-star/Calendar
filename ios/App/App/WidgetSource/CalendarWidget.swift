@@ -16,60 +16,79 @@ struct WidgetConstants {
     static let cachedSchedulesJsonKey = "cachedSchedulesJson"
     static let authTokenKey = "supabaseAuthToken"
     
-    static var sharedDefaults: UserDefaults {
-        UserDefaults(suiteName: appGroup) ?? UserDefaults.standard
+    static var sharedDefaults: UserDefaults? {
+        UserDefaults(suiteName: appGroup)
     }
     
     static func getOffset() -> Int {
-        sharedDefaults.integer(forKey: offsetKey)
+        sharedDefaults?.integer(forKey: offsetKey) ?? 0
     }
     
     static func setOffset(_ value: Int) {
-        sharedDefaults.set(value, forKey: offsetKey)
+        sharedDefaults?.set(value, forKey: offsetKey)
     }
 
     static func getRecentCalendarId() -> String? {
-        sharedDefaults.string(forKey: selectedCalendarKey)
+        sharedDefaults?.string(forKey: selectedCalendarKey)
     }
     
     static func getAuthToken() -> String? {
-        sharedDefaults.string(forKey: authTokenKey)
+        sharedDefaults?.string(forKey: authTokenKey)
     }
     
     static func getAllCalendars() -> [CalendarEntity] {
-        let json = sharedDefaults.string(forKey: allCalendarsJsonKey) ?? "[]"
+        var json = "[]"
+        
+        // Try UserDefaults first
+        if let defaults = sharedDefaults {
+            json = defaults.string(forKey: allCalendarsJsonKey) ?? "[]"
+        }
+        
+        // If empty, try file backup
+        if json == "[]" || json == "" {
+            if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) {
+                let fileURL = containerURL.appendingPathComponent("cals_backup.json")
+                json = (try? String(contentsOf: fileURL, encoding: .utf8)) ?? "[]"
+            }
+        }
+
         guard let data = json.data(using: .utf8) else { return [] }
         do {
             let decoder = JSONDecoder()
             return try decoder.decode([CalendarEntity].self, from: data)
         } catch { 
-            print("WIDGET_DEBUG: Calendars decode failed: \(error)") 
             let errString = "\(error)"
-            let dummy = CalendarEntity(id: "err-cal", title: "Err: \(errString.prefix(15))")
-            return [dummy]
+            return [CalendarEntity(id: "err", title: "Dec: \(errString.prefix(10))")]
         }
     }
 
     static func getCachedSchedules() -> [Schedule] {
-        let json = sharedDefaults.string(forKey: cachedSchedulesJsonKey) ?? "[]"
+        var json = "[]"
+        
+        // Try UserDefaults first
+        if let defaults = sharedDefaults {
+            json = defaults.string(forKey: cachedSchedulesJsonKey) ?? "[]"
+        }
+        
+        // If empty, try file backup
+        if json == "[]" || json == "" {
+            if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) {
+                let fileURL = containerURL.appendingPathComponent("schs_backup.json")
+                json = (try? String(contentsOf: fileURL, encoding: .utf8)) ?? "[]"
+            }
+        }
+
         guard let data = json.data(using: .utf8) else { return [] }
         do {
             let decoder = JSONDecoder()
-            let list = try decoder.decode([Schedule].self, from: data)
-            print("WIDGET_DEBUG: Loaded \(list.count) schedules from UserDefaults")
-            return list
+            return try decoder.decode([Schedule].self, from: data)
         } catch { 
-            print("WIDGET_DEBUG: Schedules decode failed: \(error)") 
-            
-            // Return a dummy schedule with the error message so the user can see it!
             let f = DateFormatter()
             f.locale = Locale(identifier: "en_US_POSIX")
             f.dateFormat = "yyyy-MM-dd"
             let todayStr = f.string(from: Date())
-            
             let errString = "\(error)"
-            let dummy = Schedule(id: "err1", text: "Parse: \(errString.prefix(15))", start_date: todayStr, end_date: todayStr, color: "#FF0000")
-            return [dummy]
+            return [Schedule(id: "err", text: "Err: \(errString.prefix(10))", start_date: todayStr, end_date: todayStr, color: "#FF0000")]
         }
     }
 }
@@ -367,7 +386,8 @@ struct CalendarWidgetEntryView : View {
                     .font(.system(size: 18, weight: .bold))
                 if let title = entry.calendarTitle {
                     let totalCals = WidgetConstants.getAllCalendars().count
-                    Text("\(title) (\(entry.schedules.count)/\(totalCals))")
+                    let groupStatus = WidgetConstants.sharedDefaults == nil ? "Group오류" : "\(entry.schedules.count)/\(totalCals)"
+                    Text("\(title) (\(groupStatus))")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundColor(.blue)
                         .lineLimit(1)
