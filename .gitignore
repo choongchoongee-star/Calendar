@@ -2,6 +2,14 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+# Secrets & credentials
+.env
+.env.*
+!.env.example
+docs/config.js
 mykey.key
 cert.csr
+*.p8
+*.p12
+*.key
 history.log
