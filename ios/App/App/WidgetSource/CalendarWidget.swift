@@ -360,7 +360,7 @@ struct CalendarWidgetEntryView : View {
             // Calendar Grid (Manual Rows for Touch Reliability)
             let days = generateDays(for: entry.displayMonth)
             VStack(spacing: 0) {
-                ForEach(0..<6, id: \.self) { row in
+                ForEach(0..<(days.count / 7), id: \.self) { row in
                     HStack(spacing: 0) {
                         ForEach(0..<7, id: \.self) { col in
                             let index = row * 7 + col
@@ -451,8 +451,11 @@ struct CalendarWidgetEntryView : View {
         let weekday = cal.component(.weekday, from: first)
         let prevMonthDays = weekday - 1
         guard let startOfGrid = cal.date(byAdding: .day, value: -prevMonthDays, to: first) else { return [] }
+        let daysInMonth = cal.range(of: .day, in: .month, for: month)?.count ?? 30
+        let totalCells = prevMonthDays + daysInMonth
+        let numRows = (totalCells + 6) / 7
         var days: [Date?] = []
-        for i in 0..<42 { days.append(cal.date(byAdding: .day, value: i, to: startOfGrid)) }
+        for i in 0..<(numRows * 7) { days.append(cal.date(byAdding: .day, value: i, to: startOfGrid)) }
         return days
     }
 
@@ -487,10 +490,18 @@ struct CalendarWidgetEntryView : View {
                             let daySchedules = entry.schedules.filter { isWithin(date: date, event: $0) }
                             if isCurrentMonth {
                                 ForEach(daySchedules.prefix(2)) { ev in
-                                    RoundedRectangle(cornerRadius: 1)
-                                        .fill(Color(hex: ev.color ?? "#5DA2D5"))
-                                        .frame(height: 4)
-                                        .padding(.horizontal, 2)
+                                    HStack(spacing: 2) {
+                                        RoundedRectangle(cornerRadius: 1)
+                                            .fill(Color(hex: ev.color ?? "#5DA2D5"))
+                                            .frame(width: 3, height: 8)
+                                        Text(ev.text)
+                                            .font(.system(size: 7, weight: .medium))
+                                            .foregroundColor(Color(hex: ev.color ?? "#5DA2D5"))
+                                            .lineLimit(1)
+                                            .truncationMode(.tail)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    .padding(.horizontal, 2)
                                 }
                             }
                         }
