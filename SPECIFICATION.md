@@ -1,6 +1,6 @@
 # Monthly Schedule Service - Product Specification
 
-**Last Updated:** 2026-02-12
+**Last Updated:** 2026-03-14
 **Status:** Active / In Development
 
 ## 1. Project Overview
@@ -21,6 +21,19 @@ The **Monthly Schedule Service** is a responsive, cross-platform calendar applic
 - **Supabase Client:** Handles direct DB connections and Auth.
 - **Apple Sign-In:** Native plugin integration for iOS, web fallback.
 - **LocalStorage:** Persists data for Guest Mode and caches user preferences.
+- **WidgetBridge (Capacitor Plugin):** Custom native plugin (`WidgetBridge.swift` + `.m`) that writes schedule/calendar data to a shared `UserDefaults` App Group (`group.com.dangmoo.calendar`) for use by the iOS widget.
+
+### 2.3 iOS Widget
+- **Entry Point:** `CalendarWidget.swift` (Swift Package in `WidgetSource/`)
+- **Build Setup:** `add_widget_target.rb` dynamically adds the widget extension target and required source files to the Xcode project during GitHub Actions CI.
+- **Data Flow:** JS app → `updateWidgetCalendar()` → `WidgetBridge.setSelectedCalendar()` → Shared `UserDefaults` + file backup → Widget reads on timeline refresh
+- **Plugin Registration:** `ViewController.swift` subclasses `CAPBridgeViewController` and explicitly calls `bridge?.registerPluginInstance(WidgetBridge())` in `capacitorDidLoad()`.
+- **Widget Sizes:**
+  - **Small (1×1):** Today's date + up to 3 events with color bar and title
+  - **Medium (2×1):** Current week (Sun–Sat) with per-day event list
+  - **Large (2×2):** Full month grid with event dot+title per cell, dynamic row count (4–5 weeks, no overflow into next month)
+- **Interactivity:** Prev/next month buttons (`ChangeMonthIntent`), refresh button (`RefreshWidgetIntent`), deep link taps (`vibe://date/YYYY-MM-DD`, `vibe://add?date=...`)
+- **Holidays:** Hardcoded Korean public holidays displayed in red
 
 ## 3. Functional Requirements
 
@@ -120,5 +133,5 @@ The **Monthly Schedule Service** is a responsive, cross-platform calendar applic
 - **Hardcoded Credentials:** API keys are visible in client code.
 - **Conflict Resolution:** No complex merging strategy for simultaneous edits.
 - **Offline Support:** Limited to Guest Mode; logged-in users require connection.
-- **Widget Deep Linking:** Add JavaScript listener to handle `vibe://date/YYYY-MM-DD` URLs from the widget to auto-open specific dates.
+- **Widget Deep Linking:** JS listener for `vibe://date/YYYY-MM-DD` URLs not yet implemented — tapping widget dates does not auto-navigate in app.
 - **SDK Compliance (ITMS-90725):** Update build environment to iOS 26 SDK / Xcode 26 before April 28, 2026.
