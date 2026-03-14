@@ -1,5 +1,10 @@
 {
   "appId": "com.dangmoo.calendar",
   "appName": "Calendar",
-  "webDir": "docs"
+  "webDir": "docs",
+  "packageClassList": [
+    "SignInWithApple",
+    "AppPlugin",
+    "WidgetBridge"
+  ]
 }
