@@ -304,6 +304,8 @@ struct CalendarWidgetEntryView : View {
         VStack(spacing: 0) {
             if family == .systemSmall {
                 smallView
+            } else if family == .systemMedium {
+                weekView
             } else {
                 fullGridView
             }
@@ -314,32 +316,91 @@ struct CalendarWidgetEntryView : View {
     }
 
     var smallView: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(monthAbbr(entry.date)).font(.system(size: 16, weight: .bold)).foregroundColor(.red)
+                Text(monthAbbr(entry.date)).font(.system(size: 14, weight: .bold)).foregroundColor(.red)
                 Spacer()
                 if let title = entry.calendarTitle {
                     Text(title).font(.system(size: 9)).foregroundColor(.blue).lineLimit(1)
                 }
             }
-            Text("\(Calendar.current.component(.day, from: entry.date))").font(.system(size: 34, weight: .heavy))
-            Spacer()
+            Text("\(Calendar.current.component(.day, from: entry.date))").font(.system(size: 28, weight: .heavy))
             let todayEvents = eventsFor(date: entry.date)
             if todayEvents.isEmpty {
-                Text("일정 없음").font(.system(size: 11)).foregroundColor(.gray)
+                Spacer()
+                Text("일정 없음").font(.system(size: 12)).foregroundColor(.gray)
             } else {
-                ForEach(todayEvents.prefix(2)) { ev in
-                    Text(ev.text)
-                        .font(.system(size: 10, weight: .medium))
-                        .lineLimit(1)
-                        .padding(.horizontal, 4)
-                        .background(RoundedRectangle(cornerRadius: 2).fill(Color(hex: ev.color ?? "#5DA2D5").opacity(0.2)))
-                        .foregroundColor(Color(hex: ev.color ?? "#5DA2D5"))
+                ForEach(todayEvents.prefix(3)) { ev in
+                    HStack(spacing: 4) {
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(Color(hex: ev.color ?? "#5DA2D5"))
+                            .frame(width: 3)
+                        Text(ev.text)
+                            .font(.system(size: 11, weight: .medium))
+                            .lineLimit(2)
+                            .foregroundColor(colorScheme == .dark ? .white : .black)
+                    }
                 }
+                Spacer(minLength: 0)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .widgetURL(URL(string: "vibe://date/\(formatDate(entry.date))"))
+    }
+
+    var weekView: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(monthAbbr(entry.date)).font(.system(size: 14, weight: .bold))
+                if let title = entry.calendarTitle {
+                    Text("· \(title)").font(.system(size: 10)).foregroundColor(.gray).lineLimit(1)
+                }
+                Spacer()
+            }
+            HStack(spacing: 2) {
+                ForEach(currentWeekDays(), id: \.self) { date in
+                    weekDayCell(date)
+                }
+            }
+        }
+    }
+
+    func currentWeekDays() -> [Date] {
+        let cal = Calendar.current
+        let today = Date()
+        let weekday = cal.component(.weekday, from: today)
+        let startOfWeek = cal.date(byAdding: .day, value: -(weekday - 1), to: today)!
+        return (0..<7).compactMap { cal.date(byAdding: .day, value: $0, to: startOfWeek) }
+    }
+
+    func weekDayCell(_ date: Date) -> some View {
+        let cal = Calendar.current
+        let weekday = cal.component(.weekday, from: date) - 1
+        let isTodayDate = isToday(date)
+        let isSunday = weekday == 0
+        let dayLetters = ["일", "월", "화", "수", "목", "금", "토"]
+        let events = eventsFor(date: date)
+
+        return VStack(spacing: 2) {
+            Text(dayLetters[weekday])
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(isSunday ? .red : .gray)
+            Text("\(cal.component(.day, from: date))")
+                .font(.system(size: 13, weight: isTodayDate ? .bold : .regular))
+                .foregroundColor(isTodayDate ? .white : (isSunday ? .red : (colorScheme == .dark ? .white : .black)))
+                .frame(width: 22, height: 22)
+                .background(isTodayDate ? Circle().fill(Color.red) : nil)
+            ForEach(events.prefix(3)) { ev in
+                Text(ev.text)
+                    .font(.system(size: 7, weight: .medium))
+                    .foregroundColor(Color(hex: ev.color ?? "#5DA2D5"))
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 1)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     var fullGridView: some View {
