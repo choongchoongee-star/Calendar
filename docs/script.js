@@ -1329,10 +1329,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         payloads.push({ ...payload, start_date: CalendarUtils.formatDate(nextStart), end_date: CalendarUtils.formatDate(nextEnd), group_id: groupId });
                     }
                     await DataManager.addSchedules(payloads);
+                    payloads.forEach(p => scheduleScheduleNotification(p));
                 } else {
                     if (editingGroupId) await DataManager.deleteSchedulesByGroupId(editingGroupId);
                     else if (editingScheduleId) await DataManager.deleteSchedule(editingScheduleId);
                                     await DataManager.addSchedule(payload);
+                                    scheduleScheduleNotification(payload);
                                 }
                                 await DataManager.fetchSchedules();
                                 DataManager.updateWidgetCalendar(); // Force widget sync after data change
@@ -1431,6 +1433,47 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.log("App state changed:", state.isActive ? "Active" : "Background");
                 DataManager.updateWidgetCalendar();
             });
+
+            // Request local notification permission
+            try {
+                const { LocalNotifications } = window.Capacitor.Plugins;
+                if (LocalNotifications) {
+                    await LocalNotifications.requestPermissions();
+                }
+            } catch (e) {
+                console.log("LocalNotifications not available:", e);
+            }
         }
     }
 });
+
+// Schedule a local notification 30 minutes before a schedule starts
+async function scheduleScheduleNotification(schedule) {
+    if (!window.Capacitor) return;
+    try {
+        const { LocalNotifications } = window.Capacitor.Plugins;
+        if (!LocalNotifications) return;
+        const { display } = await LocalNotifications.checkPermissions();
+        if (display !== 'granted') return;
+
+        const startStr = schedule.start_date + (schedule.start_time ? 'T' + schedule.start_time : 'T09:00');
+        const startDate = new Date(startStr);
+        const notifyAt = new Date(startDate.getTime() - 30 * 60 * 1000);
+        if (notifyAt <= new Date()) return;
+
+        const idSeed = String(schedule.id).split('').reduce((a, c) => (a << 5) - a + c.charCodeAt(0), 0);
+        const notifId = Math.abs(idSeed) % 2147483647;
+        await LocalNotifications.schedule({
+            notifications: [{
+                id: notifId,
+                title: '📅 곧 일정이 시작됩니다',
+                body: schedule.text + (schedule.start_time ? ' · ' + schedule.start_time : ''),
+                schedule: { at: notifyAt },
+                sound: 'default',
+                iconColor: schedule.color || '#5DA2D5'
+            }]
+        });
+    } catch (e) {
+        console.log("Notification schedule failed:", e);
+    }
+}
