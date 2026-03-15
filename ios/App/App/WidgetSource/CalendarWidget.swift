@@ -601,8 +601,8 @@ struct CalendarWidget: Widget {
         AppIntentConfiguration(kind: kind, intent: ConfigurationIntent.self, provider: Provider()) { entry in
             CalendarWidgetEntryView(entry: entry)
         }
-        .configurationDisplayName("당무 캘린더")
-        .description("Glassmorphism 스타일의 세련된 달력 위젯")
+        .configurationDisplayName("채우다")
+        .description("함께 채우는 공유 달력 위젯")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
