@@ -774,6 +774,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Subscribe to Auth Changes (Required for Mobile Web Redirects)
+    if (!DataManager.client) { return; }
     DataManager.client.auth.onAuthStateChange(async (event, session) => {
         console.log("Auth State Change:", event);
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
