@@ -1,7 +1,5 @@
 // --- Supabase Configuration ---
-// TODO: Replace these placeholders with your actual Supabase project credentials
-const SUPABASE_URL = 'https://SUPABASE_PROJECT_ID_REMOVED.supabase.co';
-const SUPABASE_KEY = 'SUPABASE_ANON_KEY_REMOVED';
+// Credentials are loaded from config.js (injected by CI, not committed)
 
 // Crypto helpers for Apple Sign-In
 const generateNonce = (length = 16) => {
