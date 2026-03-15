@@ -693,8 +693,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Expose initializeCalendar immediately so it's available for Guest login
     window.initializeCalendar = initializeCalendar;
 
-    // 1. Initialize Supabase
-    DataManager.init(SUPABASE_URL, SUPABASE_KEY);
+    // 1. Initialize Supabase (only if credentials are available)
+    if (typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_KEY !== 'undefined' && SUPABASE_URL && SUPABASE_KEY) {
+        DataManager.init(SUPABASE_URL, SUPABASE_KEY);
+    } else {
+        console.warn("Supabase credentials not found. Running in guest-only mode.");
+    }
 
     // FIX: Manually handle OAuth redirect hash if Supabase auto-detect fails on mobile
     if (window.location.hash && window.location.hash.includes('access_token')) {
