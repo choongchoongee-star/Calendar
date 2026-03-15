@@ -796,7 +796,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Check Session (Initial Load)
-    const isRedirecting = window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('refresh_token'));
+    const urlSearchParams = new URLSearchParams(window.location.search);
+    const isPKCERedirect = urlSearchParams.has('code');
+    const isHashRedirect = window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('refresh_token'));
+    const isRedirecting = isPKCERedirect || isHashRedirect;
     const session = await DataManager.checkSession();
     
     if (session) {
