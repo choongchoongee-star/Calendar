@@ -1240,7 +1240,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             currentSelectedDate = d;
             listDateHeading.textContent = d;
             scheduleListContainer.innerHTML = '';
-            listModal.style.display = 'flex';
+            listModal.style.display = 'flex'; lockBodyScroll();
             const dayEvents = [
                 ...CalendarUtils.getEventsForWeek(DataManager.getSchedules(), new Date(d + 'T00:00:00'), new Date(d + 'T23:59:59')),
                 ...CalendarUtils.getHolidaysForWeek(new Date(d + 'T00:00:00'), new Date(d + 'T23:59:59')),
@@ -1280,10 +1280,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
         }
-        function closeListModal() { listModal.style.display = 'none'; }
+        function closeListModal() { listModal.style.display = 'none'; unlockBodyScroll(); }
         
+        function lockBodyScroll() {
+            document.body.style.overflow = 'hidden';
+            document.body.style.position = 'fixed';
+            document.body.style.width = '100%';
+        }
+        function unlockBodyScroll() {
+            document.body.style.overflow = '';
+            document.body.style.position = '';
+            document.body.style.width = '';
+        }
+
         function openAddScheduleModal(d, s = null) {
             modal.style.display = 'flex';
+            lockBodyScroll();
             const modalTitle = modal.querySelector('h2');
             editingScheduleId = s ? s.id : null;
             editingGroupId = s ? s.groupId : null;
@@ -1304,7 +1316,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 recurrenceOptions.style.display = 'none';
             }
         }
-        function closeAddScheduleModal() { modal.style.display = 'none'; }
+        function closeAddScheduleModal() { modal.style.display = 'none'; unlockBodyScroll(); }
 
         async function saveSchedule() {
             const payload = { 

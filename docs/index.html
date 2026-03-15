@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#4a90e2">
-    <link rel="stylesheet" href="style.css?v=20260315-2">
+    <link rel="stylesheet" href="style.css?v=20260315-3">
 </head>
 <body>
     <!-- Login Modal -->
@@ -118,13 +118,13 @@
             <h2>일정 추가</h2>
             <input type="text" id="schedule-text" placeholder="일정 내용 입력...">
             <label for="start-date">시작 날짜:</label>
-            <input type="date" id="start-date">
+            <div class="input-wrapper"><input type="date" id="start-date"></div>
             <label for="end-date">종료 날짜:</label>
-            <input type="date" id="end-date">
+            <div class="input-wrapper"><input type="date" id="end-date"></div>
             <label for="start-time">시작 시간:</label>
-            <input type="time" id="start-time">
+            <div class="input-wrapper"><input type="time" id="start-time"></div>
             <label for="end-time">종료 시간:</label>
-            <input type="time" id="end-time">
+            <div class="input-wrapper"><input type="time" id="end-time"></div>
             
             <label style="margin-top: 15px; display: block; margin-bottom: 5px;">색상:</label>
             <div id="color-palette" class="color-palette"></div>
@@ -167,6 +167,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js?v=20260315"></script>
-    <script src="script.js?v=20260315-2"></script>
+    <script src="script.js?v=20260315-3"></script>
 </body>
 </html>
