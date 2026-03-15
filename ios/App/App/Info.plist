@@ -61,5 +61,7 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>일정 시작 전 알림을 보내드립니다.</string>
 </dict>
 </plist>
