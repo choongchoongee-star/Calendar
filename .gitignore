@@ -6,7 +6,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
-docs/config.js
+# docs/config.js committed with placeholders; CI overwrites with real values
 mykey.key
 cert.csr
 *.p8

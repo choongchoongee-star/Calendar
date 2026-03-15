@@ -832,7 +832,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         checkInvite();
     }
 
-    function initializeCalendar() {
+    async function initializeCalendar() {
         window.initializeCalendar = initializeCalendar; // Expose for DataManager
         
         window.refreshCalendarApp = async (targetCalendarId) => {
