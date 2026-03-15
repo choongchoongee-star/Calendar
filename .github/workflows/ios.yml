@@ -35,8 +35,13 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: |
-          echo "const SUPABASE_URL = '${SUPABASE_URL}';" > docs/config.js
-          echo "const SUPABASE_KEY = '${SUPABASE_KEY}';" >> docs/config.js
+          if [ -z "${SUPABASE_URL}" ] || [ -z "${SUPABASE_KEY}" ]; then
+            echo "WARNING: SUPABASE_URL or SUPABASE_KEY secret is not set. App will run in guest-only mode."
+            echo "// Supabase credentials not configured" > docs/config.js
+          else
+            echo "const SUPABASE_URL = '${SUPABASE_URL}';" > docs/config.js
+            echo "const SUPABASE_KEY = '${SUPABASE_KEY}';" >> docs/config.js
+          fi
 
       - name: Sync Capacitor
         run: |
