@@ -30,6 +30,14 @@ jobs:
         run: |
           npm install
 
+      - name: Inject Supabase config
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          echo "const SUPABASE_URL = '${SUPABASE_URL}';" > docs/config.js
+          echo "const SUPABASE_KEY = '${SUPABASE_KEY}';" >> docs/config.js
+
       - name: Sync Capacitor
         run: |
           node ./node_modules/.bin/cap sync ios
