@@ -113,7 +113,9 @@ const DataManager = {
             console.error("Supabase SDK not loaded.");
             return;
         }
-        this.client = window.supabase.createClient(url, key);
+        this.client = window.supabase.createClient(url, key, {
+            auth: { flowType: 'implicit' }
+        });
         console.log("Supabase initialized.");
     },
 
@@ -224,6 +226,8 @@ const DataManager = {
             }
 
             // 2. Web OAuth (Fallback & Default)
+            // Clear guest mode so the OAuth callback doesn't return a stale guest session
+            localStorage.removeItem('isGuest');
             // Ensure trailing slash for GitHub Pages to prevent 301 redirects dropping the hash
             let redirectUrl = window.location.href.split('?')[0].split('#')[0].replace(/\/index\.html$/, '');
             if (!redirectUrl.endsWith('/')) {
