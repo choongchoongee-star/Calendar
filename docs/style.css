@@ -219,7 +219,6 @@ header {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     max-height: 90vh;
     overflow-y: auto;
-    overflow-x: hidden;
     box-sizing: border-box;
 }
 
@@ -232,7 +231,7 @@ header {
 .modal-content h2 { margin-top: 0; }
 .modal-content label { margin-top: 10px; display: block; }
 .modal-content input { width: 100%; max-width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: none; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
+input[type="date"], input[type="time"] { display: block; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
 
 .recurrence-section {
     margin-top: 15px;
