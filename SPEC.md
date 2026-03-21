@@ -167,7 +167,29 @@ Calendar/
 
 ---
 
-## 7. Out of Scope
+## 7. App Store 출시 체크리스트
+
+### ✅ 코드로 완료
+- [x] `PrivacyInfo.xcprivacy` 생성 (UserDefaults CA92.1, FileTimestamp C617.1)
+- [x] `add_widget_target.rb`에서 Privacy Manifest를 App 타겟에 자동 등록
+- [x] `UIRequiredDeviceCapabilities`: armv7 → arm64
+- [x] `docs/privacy.html` 개인정보 처리방침 페이지
+- [x] `ITSAppUsesNonExemptEncryption = false`
+- [x] Sign in with Apple 구현 (Google 로그인 제공 시 필수)
+- [x] TestFlight 업로드 파이프라인
+
+### 🙋 직접 해야 하는 작업 (App Store Connect)
+- [ ] **스크린샷** — iPhone 6.7인치 필수, 6.5인치 권장 (시뮬레이터로 촬영 가능)
+- [ ] **앱 설명·키워드** 작성 (한국어, 영어)
+- [ ] **Privacy Policy URL** 등록 — GitHub Pages 배포 후 `docs/privacy.html` URL 입력
+- [ ] **개인정보 레이블** 선택 (이메일, 사용자 ID → App Functionality)
+- [ ] **연령 등급** 설문 (캘린더 앱 → 4+)
+- [ ] **지원 URL** 등록 (GitHub Pages 또는 이메일 페이지)
+- [ ] **카테고리** 선택: Productivity
+
+---
+
+## 8. Out of Scope
 
 - 복잡한 동시 편집 충돌 해결
 - 오프라인 모드 (로그인 사용자 기준)
