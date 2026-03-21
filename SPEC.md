@@ -177,6 +177,6 @@ Calendar/
 ## 8. 미완료 / 알려진 이슈
 
 - [x] 위젯 딥링크 JS 수신 완료 — cold start (`getLaunchUrl`) + foreground (`appUrlOpen`) (2026-03-21)
-- [ ] Supabase 자격증명 `script.js` 하드코딩 → 환경변수 이전 필요
+- [x] Supabase 자격증명 환경변수 이전 완료 — config.js CI 주입, redirectURI·ICS URL 동적화 (2026-03-21)
 - [x] ITMS-90725: iOS 26 SDK / Xcode 26 — macos-16 러너로 전환 (2026-03-21)
 - [x] 빌드 환경: GitHub Actions macOS 러너 macos-15 → macos-16 업그레이드 완료
