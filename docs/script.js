@@ -1410,6 +1410,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             await loadCalendars();
             console.log("App Initialized: Final widget sync...");
             DataManager.updateWidgetCalendar();
+
+            // Cold start deeplink: handle URL when app was launched fresh from widget tap
+            if (window.Capacitor) {
+                try {
+                    const { App } = window.Capacitor.Plugins;
+                    if (App) {
+                        const launchUrlResult = await App.getLaunchUrl();
+                        if (launchUrlResult && launchUrlResult.url) {
+                            console.log("Cold start deeplink:", launchUrlResult.url);
+                            window.handleDeepLink(launchUrlResult.url);
+                        }
+                    }
+                } catch (e) {
+                    console.log("getLaunchUrl not available:", e);
+                }
+            }
         })();
 
         // --- Deep Linking Support (Widget -> App) ---

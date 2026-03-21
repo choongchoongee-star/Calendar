@@ -119,7 +119,10 @@ Calendar/
 
 ### 4.5 위젯 딥링크 JS 수신
 - `vibe://date/YYYY-MM-DD` 탭 시 앱 내 해당 날짜로 자동 이동
-- **구현 상태:** 📋 예정 (JS 리스너 미구현)
+- `vibe://add?date=YYYY-MM-DD` 탭 시 해당 날짜로 일정 추가 모달 열기
+- Foreground: `appUrlOpen` 이벤트로 수신
+- Cold start: `App.getLaunchUrl()`로 수신 (loadCalendars 완료 후 처리)
+- **구현 상태:** ✅ 완료
 
 ---
 
@@ -160,7 +163,7 @@ Calendar/
 - [x] SwiftUI 위젯 (소/중/대형)
 - [x] WidgetBridge Capacitor 플러그인
 - [x] GitHub Actions iOS 자동 빌드 (macos-16 / Xcode 26)
-- [ ] 위젯 딥링크 JS 수신 (`vibe://date/...`)
+- [x] 위젯 딥링크 JS 수신 (`vibe://date/...`, cold start 포함)
 
 ---
 
@@ -173,7 +176,7 @@ Calendar/
 
 ## 8. 미완료 / 알려진 이슈
 
-- [ ] 위젯 딥링크 JS 수신 미구현 (2026-03-21 기준)
+- [x] 위젯 딥링크 JS 수신 완료 — cold start (`getLaunchUrl`) + foreground (`appUrlOpen`) (2026-03-21)
 - [ ] Supabase 자격증명 `script.js` 하드코딩 → 환경변수 이전 필요
 - [x] ITMS-90725: iOS 26 SDK / Xcode 26 — macos-16 러너로 전환 (2026-03-21)
 - [x] 빌드 환경: GitHub Actions macOS 러너 macos-15 → macos-16 업그레이드 완료
