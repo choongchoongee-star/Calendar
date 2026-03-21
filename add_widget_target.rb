@@ -51,6 +51,11 @@ widget_target.add_system_frameworks(['WidgetKit', 'SwiftUI', 'Foundation'])
 app_group = project.main_group['App']
 widget_group = app_group['WidgetSource'] || app_group.new_group('WidgetSource', 'WidgetSource')
 
+# Add PrivacyInfo.xcprivacy to App target (required for App Store submission)
+project.objects.select { |obj| obj.isa == 'PBXFileReference' && obj.path == 'PrivacyInfo.xcprivacy' }.each(&:remove_from_project)
+privacy_ref = app_group.new_file('PrivacyInfo.xcprivacy')
+app_target.resources_build_phase.add_file_reference(privacy_ref)
+
 # Add WidgetBridge.swift, .m, and ViewController.swift to App target
 project.objects.select { |obj| obj.isa == 'PBXFileReference' && obj.path && (obj.path.include?('WidgetBridge.swift') || obj.path.include?('WidgetBridge.m') || obj.path == 'ViewController.swift') }.each(&:remove_from_project)
 bridge_swift_ref = app_group.new_file('WidgetBridge.swift')
