@@ -193,7 +193,7 @@ const DataManager = {
                         const result = await AppleSignIn.authorize({
                             clientId: 'com.dangmoo.calendar',
                             scopes: 'email name',
-                            redirectURI: 'https://SUPABASE_PROJECT_ID_REMOVED.supabase.co/auth/v1/callback',
+                            redirectURI: `${SUPABASE_URL}/auth/v1/callback`,
                             nonce: hashedNonce
                         });
 
@@ -1134,7 +1134,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!linkInput) return;
             
             if (DataManager.currentCalendarId) {
-                linkInput.value = `https://SUPABASE_PROJECT_ID_REMOVED.supabase.co/storage/v1/object/public/calendars/calendar-${DataManager.currentCalendarId}.ics`;
+                linkInput.value = `${SUPABASE_URL}/storage/v1/object/public/calendars/calendar-${DataManager.currentCalendarId}.ics`;
             } else {
                 linkInput.value = "캘린더를 선택해주세요.";
             }
