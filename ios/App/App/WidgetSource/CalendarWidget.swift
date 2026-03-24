@@ -404,39 +404,52 @@ struct CalendarWidgetEntryView : View {
     }
 
     var fullGridView: some View {
-        VStack(spacing: 0) {
-            headerView
-            
-            // Weekdays Header
-            HStack(spacing: 0) {
-                ForEach(0..<7) { i in
-                    Text(weekdays[i].prefix(1))
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(i == 0 ? .red : (i == 6 ? .blue : .gray))
-                        .frame(maxWidth: .infinity)
-                }
-            }
-            .padding(.bottom, 6)
-
-            // Calendar Grid (Manual Rows for Touch Reliability)
+        GeometryReader { proxy in
             let days = generateDays(for: entry.displayMonth)
+            let numRows = days.count / 7
+            // fixedHeaderHeight: headerView(~36pt) + its bottom padding(8pt) + weekday row(16pt) + weekday bottom padding(6pt)
+            let fixedHeaderHeight: CGFloat = 66
+            let gridAvailable = max(proxy.size.height - fixedHeaderHeight, CGFloat(numRows) * 30)
+            let rowHeight = gridAvailable / CGFloat(numRows)
+            let maxEventsForHeight: Int = rowHeight > 60 ? 3 : (rowHeight > 44 ? 2 : 1)
+
             VStack(spacing: 0) {
-                ForEach(0..<(days.count / 7), id: \.self) { row in
-                    HStack(spacing: 0) {
-                        ForEach(0..<7, id: \.self) { col in
-                            let index = row * 7 + col
-                            if index < days.count {
-                                dateCell(days[index])
-                                    .border(Color.gray.opacity(0.1), width: 0.5)
-                            } else {
-                                Color.clear.frame(height: 38).frame(maxWidth: .infinity)
+                headerView
+
+                // Weekdays Header
+                HStack(spacing: 0) {
+                    ForEach(0..<7) { i in
+                        Text(weekdays[i].prefix(1))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(i == 0 ? .red : (i == 6 ? .blue : .gray))
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .frame(height: 16)
+                .padding(.bottom, 6)
+
+                // Calendar Grid (Manual Rows for Touch Reliability)
+                VStack(spacing: 0) {
+                    ForEach(0..<numRows, id: \.self) { row in
+                        HStack(spacing: 0) {
+                            ForEach(0..<7, id: \.self) { col in
+                                let index = row * 7 + col
+                                if index < days.count {
+                                    dateCell(days[index], rowHeight: rowHeight, maxEvents: maxEventsForHeight)
+                                        .border(Color.gray.opacity(0.1), width: 0.5)
+                                } else {
+                                    Color.clear
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: rowHeight)
+                                }
                             }
                         }
                     }
                 }
+                .cornerRadius(4)
+                .clipped()
             }
-            .cornerRadius(4)
-            .clipped()
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
     }
 
@@ -446,9 +459,7 @@ struct CalendarWidgetEntryView : View {
                 Text(monthAbbr(entry.displayMonth))
                     .font(.system(size: 18, weight: .bold))
                 if let title = entry.calendarTitle {
-                    let totalCals = WidgetConstants.getAllCalendars().count
-                    let groupStatus = WidgetConstants.sharedDefaults == nil ? "Group오류" : "\(entry.schedules.count)/\(totalCals)"
-                    Text("\(title) (\(groupStatus))")
+                    Text(title)
                         .font(.system(size: 9, weight: .bold))
                         .foregroundColor(.blue)
                         .lineLimit(1)
@@ -529,7 +540,7 @@ struct CalendarWidgetEntryView : View {
         }
     }
 
-    func dateCell(_ date: Date?) -> some View {
+    func dateCell(_ date: Date?, rowHeight: CGFloat = 38, maxEvents: Int = 2) -> some View {
         Group {
             if let date = date {
                 let ds = formatDate(date)
@@ -539,18 +550,18 @@ struct CalendarWidgetEntryView : View {
                         let isTodayDate = isToday(date)
                         let isSunday = Calendar.current.component(.weekday, from: date) == 1
                         let holiday = entry.holidays.first(where: { isWithin(date: date, event: $0) })
-                        
+
                         Text("\(Calendar.current.component(.day, from: date))")
                             .font(.system(size: 10, weight: isTodayDate ? .bold : .regular))
                             .foregroundColor(textColor(date: date, isCurrentMonth: isCurrentMonth, isSunday: isSunday, isHoliday: holiday != nil))
                             .frame(width: 20, height: 20)
                             .background(isTodayDate ? Circle().fill(Color.red) : nil)
                             .background(isTodayDate ? nil : (holiday != nil && isCurrentMonth ? Circle().fill(Color.red.opacity(0.1)) : nil))
-                        
+
                         VStack(spacing: 1) {
                             let daySchedules = entry.schedules.filter { isWithin(date: date, event: $0) }
                             if isCurrentMonth {
-                                ForEach(daySchedules.prefix(2)) { ev in
+                                ForEach(daySchedules.prefix(maxEvents)) { ev in
                                     HStack(spacing: 2) {
                                         RoundedRectangle(cornerRadius: 1)
                                             .fill(Color(hex: ev.color ?? "#5DA2D5"))
@@ -564,17 +575,24 @@ struct CalendarWidgetEntryView : View {
                                     }
                                     .padding(.horizontal, 2)
                                 }
+                                if daySchedules.count > maxEvents {
+                                    Text("···")
+                                        .font(.system(size: 7, weight: .medium))
+                                        .foregroundColor(.gray)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, 4)
+                                }
                             }
                         }
                         Spacer(minLength: 0)
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 38)
+                    .frame(height: rowHeight)
                     .contentShape(Rectangle())
                     .background(Color.white.opacity(0.001)) // Essential for hit-testing
                 }
             } else {
-                Color.clear.frame(height: 38).frame(maxWidth: .infinity)
+                Color.clear.frame(maxWidth: .infinity).frame(height: rowHeight)
             }
         }
     }
