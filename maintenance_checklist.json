@@ -1,0 +1,156 @@
+{
+  "auto_fix": ["css_style", "console_log_removal", "dead_code", "typo", "missing_optional_chaining", "missing_error_handling", "accessibility_basic"],
+  "ask_human": ["logic_change", "auth_flow", "data_model", "supabase_rls", "api_change", "dependency_update", "ios_native_code"],
+  "items": [
+    {
+      "id": 1,
+      "priority": "security",
+      "risk": "missing_error_handling",
+      "title": "Widget sync exposes raw err.message in alert",
+      "description": "Line 105 in script.js: `alert(\"위젯 동기화 오류: \" + err.message)` — internal bridge error message directly exposed to user. Should show a friendly message instead.",
+      "steps": [
+        "Open the app in browser (guest mode is fine)",
+        "Inspect script.js around the WidgetBridge.setSelectedCalendar().catch() block",
+        "Verify the alert would show raw err.message if triggered"
+      ],
+      "file": "docs/script.js",
+      "line": 105,
+      "status": "fixed"
+    },
+    {
+      "id": 2,
+      "priority": "security",
+      "risk": "missing_error_handling",
+      "title": "OAuth login exposes raw error.message in alert",
+      "description": "Lines 244 and 246 in script.js: signIn() catches errors with `alert(\"로그인 오류: \" + error.message)` and `alert(\"로그인 시스템 오류: \" + e.message)`. These can expose internal Supabase/OAuth error details to users.",
+      "steps": [
+        "Open script.js and find the signIn() function",
+        "Check the catch blocks at lines 244 and 246",
+        "Verify that error.message is passed directly to alert without sanitization"
+      ],
+      "file": "docs/script.js",
+      "line": 244,
+      "status": "fixed"
+    },
+    {
+      "id": 3,
+      "priority": "qa",
+      "risk": "logic_change",
+      "title": "Early return blocks app init when Supabase client is null",
+      "description": "Line 781 in script.js: `if (!DataManager.client) { return; }` returns early from the entire DOMContentLoaded handler. This skips session check, guest mode setup, AND initializeCalendar() — so in local dev with empty config.js credentials, the app renders an empty unusable state instead of correctly falling back to guest mode.",
+      "steps": [
+        "Open docs/index.html locally (or check that config.js has empty credentials)",
+        "Observe whether the calendar renders and the guest mode loads",
+        "Check browser console for the Supabase not initialized warning"
+      ],
+      "file": "docs/script.js",
+      "line": 781,
+      "status": "reported"
+    },
+    {
+      "id": 4,
+      "priority": "qa",
+      "risk": "missing_error_handling",
+      "title": "Unguarded JSON.parse in updateWidgetCalendar fallback",
+      "description": "Line 68 in script.js: inside updateWidgetCalendar(), there is a bare `JSON.parse(stored)` without try-catch when falling back to re-read guest_calendars from localStorage. If stored value is corrupted, this will throw an uncaught exception and crash the function silently.",
+      "steps": [
+        "In script.js locate the updateWidgetCalendar() function",
+        "Find the block around line 65-69 that parses guest_calendars as a last-resort fallback",
+        "Verify JSON.parse is called without try-catch protection"
+      ],
+      "file": "docs/script.js",
+      "line": 68,
+      "status": "fixed"
+    },
+    {
+      "id": 5,
+      "priority": "qa",
+      "risk": "logic_change",
+      "title": "Holiday data hardcoded for 2026 only",
+      "description": "The getHolidaysForWeek() function in CalendarUtils (lines 654-673) contains only 2026 holidays. In 2027 and beyond, no holidays will be displayed on the calendar. The 2025 holidays are also missing.",
+      "steps": [
+        "Navigate the calendar to December 2025 — verify 성탄절 is NOT shown (it should be)",
+        "Navigate to January 2027 — verify 신정 is NOT shown (it should be)",
+        "Navigate to January 2026 — verify 신정 IS shown"
+      ],
+      "file": "docs/script.js",
+      "line": 654,
+      "status": "reported"
+    },
+    {
+      "id": 6,
+      "priority": "qa",
+      "risk": "dead_code",
+      "title": "Redundant WidgetBridge null check after guard clause",
+      "description": "Lines 35-41 in updateWidgetCalendar(): `if (!WidgetBridge) { return; }` is followed immediately by `if (WidgetBridge) { ... }`. The inner `if (WidgetBridge)` is always true at that point — this is dead code that adds unnecessary nesting.",
+      "steps": [
+        "Open script.js and find updateWidgetCalendar()",
+        "Observe lines 35-41: first a guard `if (!WidgetBridge) return`, then immediately `if (WidgetBridge) {`",
+        "Confirm the inner if-check is always true (since the guard already handled the false case)"
+      ],
+      "file": "docs/script.js",
+      "line": 41,
+      "status": "fixed"
+    },
+    {
+      "id": 7,
+      "priority": "qa",
+      "risk": "missing_error_handling",
+      "title": "deleteSchedule catch block swallows the actual error",
+      "description": "Line 1377 in script.js: the `deleteSchedule` UI handler catches errors but only does `alert(\"삭제 실패\")` without including the actual error message. When delete fails, the user gets no actionable information.",
+      "steps": [
+        "Open script.js and locate the deleteSchedule function (UI handler, around line 1369)",
+        "Examine the catch block — it calls alert('삭제 실패') with no error details",
+        "Compare with other error handlers in the file which do include e.message"
+      ],
+      "file": "docs/script.js",
+      "line": 1377,
+      "status": "fixed"
+    },
+    {
+      "id": 8,
+      "priority": "polish",
+      "risk": "accessibility_basic",
+      "title": "HTML lang attribute is 'en' but UI is Korean",
+      "description": "docs/index.html line 2: `<html lang=\"en\">` — the entire UI, buttons, labels, and modals are written in Korean. Screen readers and browser translation tools will incorrectly identify the page language.",
+      "steps": [
+        "Open docs/index.html",
+        "Inspect the lang attribute on the <html> element",
+        "Verify all visible text in the app is in Korean"
+      ],
+      "file": "docs/index.html",
+      "line": 2,
+      "status": "fixed"
+    },
+    {
+      "id": 9,
+      "priority": "polish",
+      "risk": "typo",
+      "title": "Calendar selected indicator uses ASCII '(V)' instead of checkmark",
+      "description": "Line 936 in script.js: `cal.title + (cal.id === DataManager.currentCalendarId ? ' (V)' : '')` — uses a parenthesized letter V as a selected indicator. Should use a proper Unicode checkmark like '✓' or '✔'.",
+      "steps": [
+        "Open the app in a browser (guest mode)",
+        "Open the calendar drawer (menu icon)",
+        "Observe the active calendar label — it shows '(V)' suffix instead of a checkmark symbol"
+      ],
+      "file": "docs/script.js",
+      "line": 936,
+      "status": "fixed"
+    },
+    {
+      "id": 10,
+      "priority": "polish",
+      "risk": "console_log_removal",
+      "title": "Excessive console.log statements left in production code",
+      "description": "script.js contains dozens of console.log calls throughout production code paths (e.g., lines 93, 94, 119, 134, 137, 179, 199, 300, 309, etc.). These clutter the browser console and may expose internal state information in production.",
+      "steps": [
+        "Open browser developer tools console",
+        "Load the app in guest mode",
+        "Observe the number of log statements appearing during normal app load and interaction"
+      ],
+      "file": "docs/script.js",
+      "line": 93,
+      "status": "fixed"
+    }
+  ]
+}

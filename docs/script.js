@@ -38,73 +38,70 @@ const DataManager = {
                 // alert("시스템: 위젯 연동 플러그인을 찾을 수 없습니다.");
                 return;
             }
-            if (WidgetBridge) {
-                // Aggressive data fetching: Check all possible keys
-                let rawSchedules = this.schedules || [];
-                if (rawSchedules.length === 0) {
-                    const guestSch = localStorage.getItem('guest_schedules');
-                    const cloudSch = localStorage.getItem('schedules_cache');
-                    try {
-                        const p1 = guestSch ? JSON.parse(guestSch) : [];
-                        const p2 = cloudSch ? JSON.parse(cloudSch) : [];
-                        rawSchedules = [...p1, ...p2];
-                    } catch(e) {}
-                }
-
-                let rawCalendars = this.calendars || [];
-                if (rawCalendars.length === 0) {
-                    const guestCal = localStorage.getItem('guest_calendars');
-                    const cloudCal = localStorage.getItem('calendars_cache');
-                    try {
-                        const c1 = guestCal ? JSON.parse(guestCal) : [];
-                        const c2 = cloudCal ? JSON.parse(cloudCal) : [];
-                        rawCalendars = [...c1, ...c2];
-                    } catch(e) {}
-                }
-
-                // If still empty and we are in guest mode, force re-check
-                if (rawCalendars.length === 0 && localStorage.getItem('isGuest') === 'true') {
-                    const stored = localStorage.getItem('guest_calendars');
-                    if (stored) rawCalendars = JSON.parse(stored);
-                }
-
-                // Prepare clean lists (Failsafe mapping)
-                const calendarList = rawCalendars.map(c => ({ 
-                    id: String(c.id || "default"), 
-                    title: String(c.title || "캘린더") 
-                }));
-                
-                const scheduleList = rawSchedules.map(s => {
-                    const idStr = String(s.id || Math.random());
-                    const txtStr = String(s.text || s.title || "일정");
-                    let sd = s.start_date || s.startDate || "";
-                    let ed = s.end_date || s.endDate || sd;
-                    if (typeof sd !== 'string') sd = String(sd);
-                    if (typeof ed !== 'string') ed = String(ed);
-                    return {
-                        id: idStr,
-                        text: txtStr,
-                        start_date: sd.substring(0, 10),
-                        end_date: ed.substring(0, 10),
-                        color: String(s.color || "#5DA2D5")
-                    };
-                }).filter(s => s.start_date.length === 10);
-
-                console.log(`Syncing to Widget: ${scheduleList.length} schedules, ${calendarList.length} calendars`);
-
-                // Send all data to widget
-                WidgetBridge.setSelectedCalendar({ 
-                    calendarId: this.currentCalendarId ? String(this.currentCalendarId) : (calendarList[0] ? calendarList[0].id : "all"),
-                    calendarsJson: JSON.stringify(calendarList),
-                    schedulesJson: JSON.stringify(scheduleList),
-                    authToken: (this.session && this.session.access_token) ? this.session.access_token : ""
-                }).then(() => {
-                    console.log("Widget Sync Success");
-                }).catch(err => {
-                    console.error("Widget Sync Bridge Failed:", err);
-                    alert("위젯 동기화 오류: " + err.message);
-                });
+            // Aggressive data fetching: Check all possible keys
+            let rawSchedules = this.schedules || [];
+            if (rawSchedules.length === 0) {
+                const guestSch = localStorage.getItem('guest_schedules');
+                const cloudSch = localStorage.getItem('schedules_cache');
+                try {
+                    const p1 = guestSch ? JSON.parse(guestSch) : [];
+                    const p2 = cloudSch ? JSON.parse(cloudSch) : [];
+                    rawSchedules = [...p1, ...p2];
+                } catch(e) {}
             }
+
+            let rawCalendars = this.calendars || [];
+            if (rawCalendars.length === 0) {
+                const guestCal = localStorage.getItem('guest_calendars');
+                const cloudCal = localStorage.getItem('calendars_cache');
+                try {
+                    const c1 = guestCal ? JSON.parse(guestCal) : [];
+                    const c2 = cloudCal ? JSON.parse(cloudCal) : [];
+                    rawCalendars = [...c1, ...c2];
+                } catch(e) {}
+            }
+
+            // If still empty and we are in guest mode, force re-check
+            if (rawCalendars.length === 0 && localStorage.getItem('isGuest') === 'true') {
+                const stored = localStorage.getItem('guest_calendars');
+                if (stored) {
+                    try { rawCalendars = JSON.parse(stored); } catch(e) {}
+                }
+            }
+
+            // Prepare clean lists (Failsafe mapping)
+            const calendarList = rawCalendars.map(c => ({
+                id: String(c.id || "default"),
+                title: String(c.title || "캘린더")
+            }));
+
+            const scheduleList = rawSchedules.map(s => {
+                const idStr = String(s.id || Math.random());
+                const txtStr = String(s.text || s.title || "일정");
+                let sd = s.start_date || s.startDate || "";
+                let ed = s.end_date || s.endDate || sd;
+                if (typeof sd !== 'string') sd = String(sd);
+                if (typeof ed !== 'string') ed = String(ed);
+                return {
+                    id: idStr,
+                    text: txtStr,
+                    start_date: sd.substring(0, 10),
+                    end_date: ed.substring(0, 10),
+                    color: String(s.color || "#5DA2D5")
+                };
+            }).filter(s => s.start_date.length === 10);
+
+            // Send all data to widget
+            WidgetBridge.setSelectedCalendar({
+                calendarId: this.currentCalendarId ? String(this.currentCalendarId) : (calendarList[0] ? calendarList[0].id : "all"),
+                calendarsJson: JSON.stringify(calendarList),
+                schedulesJson: JSON.stringify(scheduleList),
+                authToken: (this.session && this.session.access_token) ? this.session.access_token : ""
+            }).then(() => {
+            }).catch(err => {
+                console.error("Widget Sync Bridge Failed:", err);
+                alert("위젯 동기화 중 오류가 발생했습니다.");
+            });
         }
     },
 
@@ -116,7 +113,6 @@ const DataManager = {
         this.client = window.supabase.createClient(url, key, {
             auth: { flowType: 'implicit' }
         });
-        console.log("Supabase initialized.");
     },
 
     async checkSession() {
@@ -131,11 +127,8 @@ const DataManager = {
             console.error("Supabase client not initialized.");
             return null;
         }
-        console.log("Checking session...");
         const { data: { session }, error } = await this.client.auth.getSession();
         if (error) console.error("Session check error:", error);
-        if (session) console.log("Session found:", session.user.email);
-        else console.log("No session found.");
         this.session = session;
         return session;
     },
@@ -157,7 +150,6 @@ const DataManager = {
 
     async signIn(provider) {
         if (provider === 'guest') {
-            console.log("Guest login initiated");
             await this.enableGuestMode();
             document.getElementById('login-modal').style.display = 'none';
             document.getElementById('app').style.filter = 'none';
@@ -176,8 +168,6 @@ const DataManager = {
         }
 
         try {
-            console.log("Signing in with", provider);
-
             // 1. Native Apple Sign-In (iOS)
             if (provider === 'apple' && 
                 window.Capacitor && 
@@ -185,7 +175,6 @@ const DataManager = {
                 
                 const AppleSignIn = window.Capacitor.Plugins.SignInWithApple;
                 if (AppleSignIn) {
-                    console.log("Attempting native Apple Sign-In via @capacitor-community/apple-sign-in...");
                     try {
                         const rawNonce = generateNonce();
                         const hashedNonce = await sha256(rawNonce);
@@ -197,8 +186,6 @@ const DataManager = {
                             nonce: hashedNonce
                         });
 
-                        console.log("Apple Sign-In authorization result received");
-
                         if (result.response && result.response.identityToken) {
                             const { data, error } = await this.client.auth.signInWithIdToken({
                                 provider: 'apple',
@@ -206,8 +193,6 @@ const DataManager = {
                                 nonce: rawNonce, 
                             });
                             if (error) throw error;
-                            console.log("Native Apple Sign-In successful, session established");
-                            
                             this.session = data.session;
                             document.getElementById('login-modal').style.display = 'none';
                             document.getElementById('app').style.filter = 'none';
@@ -233,17 +218,15 @@ const DataManager = {
             if (!redirectUrl.endsWith('/')) {
                 redirectUrl += '/';
             }
-            console.log("Redirect URL:", redirectUrl);
-            
             const { error } = await this.client.auth.signInWithOAuth({
                 provider: provider,
                 options: {
                     redirectTo: redirectUrl
                 }
             });
-            if (error) alert("로그인 오류: " + error.message);
+            if (error) alert("로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
         } catch (e) {
-            alert("로그인 시스템 오류: " + e.message);
+            alert("로그인 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
         }
     },
 
@@ -282,12 +265,10 @@ const DataManager = {
 
     async fetchCalendars() {
         if (this.isGuest) {
-            console.log("Fetching guest calendars from local storage...");
             const stored = localStorage.getItem('guest_calendars');
             this.calendars = stored ? JSON.parse(stored) : [];
-            
+
             if (this.calendars.length === 0) {
-                console.log("No guest calendars. Creating default...");
                 await this.createCalendar("내 캘린더");
                 return await this.fetchCalendars();
             }
@@ -300,18 +281,15 @@ const DataManager = {
         }
 
         if (!this.session) return [];
-        console.log("Fetching calendars...");
         const { data, error } = await this.client.from('calendars').select('*');
         if (error) {
             console.error("Error fetching calendars:", error);
             throw error;
         }
-        console.log("Calendars fetched:", data);
         this.calendars = data;
-        
+
         // If no calendar exists, create a default one
         if (this.calendars.length === 0) {
-            console.log("No calendars found. Creating default...");
             await this.createCalendar("내 캘린더");
             return await this.fetchCalendars();
         }
@@ -344,9 +322,7 @@ const DataManager = {
         }
 
         if (!this.session || !this.session.user) throw new Error("로그인이 필요합니다.");
-        console.log("Creating calendar for user:", this.session.user.id);
-        
-        const { data, error } = await this.client.from('calendars').insert([{ 
+        const { data, error } = await this.client.from('calendars').insert([{
             title: title, 
             owner_id: this.session.user.id 
         }]).select(); // Return the created row
@@ -473,7 +449,6 @@ const DataManager = {
         }
 
         if (!this.client || !this.currentCalendarId) return [];
-        console.log(`Fetching schedules for calendar: ${this.currentCalendarId}`);
         const { data, error } = await this.client
             .from('schedules')
             .select('*')
@@ -595,10 +570,7 @@ const DataManager = {
         // Only sync if I am the owner (simplification for now, strictly speaking editors should too)
         // We'll upload to a file named after the Calendar ID to allow multiple subscriptions
         const fileName = `calendar-${this.currentCalendarId}.ics`;
-        
-        console.log("Syncing calendar to cloud storage...", fileName);
-        
-        let icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Calendar//EN\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\nX-PUBLISHED-TTL:PT1H\n";
+        let icsContent ="BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Calendar//EN\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\nX-PUBLISHED-TTL:PT1H\n";
         this.schedules.forEach(event => {
             const start = event.startDate.replace(/-/g, '') + (event.startTime ? 'T' + event.startTime.replace(/:/g, '') + '00' : '');
             const end = event.endDate.replace(/-/g, '') + (event.endTime ? 'T' + event.endTime.replace(/:/g, '') + '00' : '');
@@ -704,7 +676,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // FIX: Manually handle OAuth redirect hash if Supabase auto-detect fails on mobile
     if (window.location.hash && window.location.hash.includes('access_token')) {
-        console.log("Manual Hash Detection: Attempting to recover session...");
         const params = new URLSearchParams(window.location.hash.substring(1));
         const accessToken = params.get('access_token');
         const refreshToken = params.get('refresh_token');
@@ -715,8 +686,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 refresh_token: refreshToken
             });
             if (!error && data.session) {
-                console.log("Manual Session Recovery Successful");
-                // Do not clear hash immediately if you want Supabase to also see it, 
+                // Do not clear hash immediately if you want Supabase to also see it,
                 // but usually setSession is enough. We can clean it.
                 window.location.hash = ''; 
             } else {
@@ -734,7 +704,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Login Handler Wrapper
     const handleLogin = (provider) => {
-        console.log(`${provider} login clicked`);
         DataManager.signIn(provider);
     };
 
@@ -780,7 +749,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Subscribe to Auth Changes (Required for Mobile Web Redirects)
     if (!DataManager.client) { return; }
     DataManager.client.auth.onAuthStateChange(async (event, session) => {
-        console.log("Auth State Change:", event);
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
             if (session) {
                 DataManager.session = session;
@@ -813,11 +781,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         checkInvite();
         // Force an immediate sync after initialization
         setTimeout(() => {
-            console.log("Initial widget sync...");
             DataManager.updateWidgetCalendar();
         }, 1500);
     } else if (isRedirecting) {
-        console.log("Detected redirect hash, waiting for auth processing...");
         // Do NOT show modal. Wait for onAuthStateChange to fire.
         loginModal.style.display = 'none';
         
@@ -933,7 +899,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 li.style.alignItems = 'center';
                 
                 const span = document.createElement('span');
-                span.textContent = cal.title + (cal.id === DataManager.currentCalendarId ? ' (V)' : '');
+                span.textContent = cal.title + (cal.id === DataManager.currentCalendarId ? ' ✓' : '');
                 span.style.flex = '1'; // Take up all available space
                 span.style.overflow = 'hidden';
                 span.style.textOverflow = 'ellipsis';
@@ -1374,7 +1340,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 DataManager.updateWidgetCalendar(); // Force widget sync after data change
                                 await DataManager.syncToCloud();
                                 renderCalendar();
-                            } catch (e) { alert("삭제 실패"); }
+                            } catch (e) { alert("삭제 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."); }
                         }
         // --- Event Listeners ---
         prevMonthButton.onclick = () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); };
@@ -1405,10 +1371,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Initialize
         (async () => {
-            console.log("App Initializing: Triggering early widget sync...");
             DataManager.updateWidgetCalendar(); // Sync immediately with whatever cache exists
             await loadCalendars();
-            console.log("App Initialized: Final widget sync...");
             DataManager.updateWidgetCalendar();
 
             // Cold start deeplink: handle URL when app was launched fresh from widget tap
@@ -1418,19 +1382,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (App) {
                         const launchUrlResult = await App.getLaunchUrl();
                         if (launchUrlResult && launchUrlResult.url) {
-                            console.log("Cold start deeplink:", launchUrlResult.url);
                             window.handleDeepLink(launchUrlResult.url);
                         }
                     }
-                } catch (e) {
-                    console.log("getLaunchUrl not available:", e);
-                }
+                } catch (e) { /* getLaunchUrl not available on this platform */ }
             }
         })();
 
         // --- Deep Linking Support (Widget -> App) ---
         window.handleDeepLink = async (urlStr) => {
-            console.log("Handling Deep Link:", urlStr);
             try {
                 const url = new URL(urlStr);
                 if (url.protocol === 'vibe:') {
@@ -1467,8 +1427,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 window.handleDeepLink(data.url);
             });
             // Sync widget when app returns to foreground OR goes to background
-            window.Capacitor.Plugins.App.addListener('appStateChange', (state) => {
-                console.log("App state changed:", state.isActive ? "Active" : "Background");
+            window.Capacitor.Plugins.App.addListener('appStateChange', () => {
                 DataManager.updateWidgetCalendar();
             });
 
@@ -1478,9 +1437,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (LocalNotifications) {
                     await LocalNotifications.requestPermissions();
                 }
-            } catch (e) {
-                console.log("LocalNotifications not available:", e);
-            }
+            } catch (e) { /* LocalNotifications not available on this platform */ }
         }
     }
 });
@@ -1511,7 +1468,5 @@ async function scheduleScheduleNotification(schedule) {
                 iconColor: schedule.color || '#5DA2D5'
             }]
         });
-    } catch (e) {
-        console.log("Notification schedule failed:", e);
-    }
+    } catch (e) { /* Notification scheduling failed — non-critical, silently ignored */ }
 }

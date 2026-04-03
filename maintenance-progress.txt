@@ -1,0 +1,92 @@
+MAINTENANCE CYCLE LOG
+=====================
+Started: 2026-04-03
+Project: Calendar (Vanilla JS + Capacitor + Supabase + iOS WidgetKit)
+Branch: main
+
+SUMMARY
+-------
+Checklist created from scratch (fresh maintenance cycle).
+10 items across security / qa / polish categories.
+All items start as "pending".
+
+COUNTS (as of session start)
+-----------------------------
+pass: 0
+fixed: 0
+reported: 0
+pending: 10
+
+ITEM HISTORY
+------------
+(none yet — beginning verification pass now)
+
+=======================================================
+SESSION: 2026-04-03 (Maintenance Agent — Fresh Context)
+=======================================================
+
+VERIFIED AND ACTED ON ALL 10 ITEMS:
+
+#1 — FIXED (security / missing_error_handling)
+  Widget sync catch block: `alert("위젯 동기화 오류: " + err.message)`
+  → Replaced with generic: "위젯 동기화 중 오류가 발생했습니다."
+  File: docs/script.js
+
+#2 — FIXED (security / missing_error_handling)
+  OAuth signIn() catch blocks exposing error.message in alert at lines 244, 246
+  → Replaced both with generic Korean friendly messages
+  File: docs/script.js
+
+#3 — REPORTED (qa / logic_change)
+  Early return at `if (!DataManager.client) { return; }` skips all app init
+  including guest mode fallback when Supabase credentials are absent.
+  → Documented in maintenance_report.md with suggested fix.
+  Risk: auth flow restructuring — needs human review before fixing.
+
+#4 — FIXED (qa / missing_error_handling)
+  Bare `JSON.parse(stored)` in updateWidgetCalendar() guest_calendars fallback
+  → Wrapped in try/catch block
+  File: docs/script.js
+
+#5 — REPORTED (qa / logic_change)
+  Holiday data in getHolidaysForWeek() is 2026-only; 2025 and 2027+ show no holidays.
+  → Documented in maintenance_report.md with multi-year refactor approach.
+  Risk: requires data architecture decision (static table vs. API) — needs human review.
+
+#6 — FIXED (qa / dead_code)
+  Redundant `if (WidgetBridge) { ... }` guard immediately after `if (!WidgetBridge) return`
+  → Removed the always-true inner if, de-nested the entire block
+  File: docs/script.js
+
+#7 — FIXED (qa / missing_error_handling)
+  deleteSchedule() catch block: `alert("삭제 실패")` with no user context
+  → Replaced with: "삭제 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
+  File: docs/script.js
+
+#8 — FIXED (polish / accessibility_basic)
+  <html lang="en"> on a fully Korean UI
+  → Changed to <html lang="ko">
+  File: docs/index.html
+
+#9 — FIXED (polish / typo)
+  Calendar selected indicator: ' (V)' suffix
+  → Replaced with ' ✓' (Unicode checkmark)
+  File: docs/script.js
+
+#10 — FIXED (polish / console_log_removal)
+  34 console.log statements throughout production code paths
+  → Removed all 34 instances
+  → console.error and console.warn calls preserved
+  → Non-critical catch blocks converted to silent catch(e) with inline comments
+  → Syntax verified: node --check passes clean
+  File: docs/script.js
+
+FINAL COUNTS (end of session)
+------------------------------
+pass: 0
+fixed: 8
+reported: 2
+pending: 0
+
+All items resolved. Regression verification: script.js syntax check passed.
+No pending items remain.
