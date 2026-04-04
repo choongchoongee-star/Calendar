@@ -1,6 +1,22 @@
 {
-  "auto_fix": ["css_style", "console_log_removal", "dead_code", "typo", "missing_optional_chaining", "missing_error_handling", "accessibility_basic"],
-  "ask_human": ["logic_change", "auth_flow", "data_model", "supabase_rls", "api_change", "dependency_update", "ios_native_code"],
+  "auto_fix": [
+    "css_style",
+    "console_log_removal",
+    "dead_code",
+    "typo",
+    "missing_optional_chaining",
+    "missing_error_handling",
+    "accessibility_basic"
+  ],
+  "ask_human": [
+    "logic_change",
+    "auth_flow",
+    "data_model",
+    "supabase_rls",
+    "api_change",
+    "dependency_update",
+    "ios_native_code"
+  ],
   "items": [
     {
       "id": 1,
