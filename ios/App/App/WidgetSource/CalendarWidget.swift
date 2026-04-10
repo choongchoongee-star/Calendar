@@ -236,9 +236,6 @@ struct ConfigurationIntent: WidgetConfigurationIntent {
 
 // MARK: - 6. Provider
 struct Provider: AppIntentTimelineProvider {
-    let supabaseBaseUrl = "https://SUPABASE_PROJECT_ID_REMOVED.supabase.co/rest/v1/schedules"
-    let supabaseKey = "SUPABASE_ANON_KEY_REMOVED"
-
     let holidayData = [
         ("2026-01-01", "2026-01-01", "신정"), ("2026-02-16", "2026-02-18", "설날"),
         ("2026-03-01", "2026-03-01", "삼일절"), ("2026-05-05", "2026-05-05", "어린이날"),

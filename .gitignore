@@ -12,4 +12,12 @@ cert.csr
 *.p8
 *.p12
 *.key
+*.cer
+*.mobileprovision
+*_base64.txt
+jwt.txt
 history.log
+
+# Logs & automation artifacts
+logs/
+auto-status.json
