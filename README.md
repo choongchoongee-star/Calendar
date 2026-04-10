@@ -5,8 +5,8 @@
 ## Features
 
 - **Multi-Calendar:** 다중 캘린더 생성/관리/공유
-- **Cloud Sync:** Supabase 기반 실시간 동기화
-- **Social Login:** Google OAuth, Apple Sign-In (iOS 네이티브 + 웹 폴백)
+- **Cloud Sync:** Firebase (Firestore) 기반 클라우드 동기화
+- **Social Login:** Google OAuth, Apple Sign-In (Firebase Auth)
 - **Guest Mode:** 로그인 없이 바로 사용 (localStorage 기반)
 - **Sharing:** URL 기반 캘린더 초대, `.ics` 외부 구독
 - **iOS Widget:** SwiftUI 위젯 소/중/대형 — 딥링크로 앱 연동 (`vibe://`)
@@ -18,7 +18,7 @@
 ## Tech Stack
 
 - **Frontend:** Vanilla HTML/CSS/JS (ES6+), PWA
-- **Backend:** Supabase (Auth, PostgreSQL, Storage)
+- **Backend:** Firebase (Auth, Firestore, Storage)
 - **Mobile:** Capacitor 7 (iOS)
 - **Widget:** SwiftUI + WidgetKit + AppIntents
 - **CI/CD:** GitHub Actions → GitHub Pages (웹) / TestFlight (iOS)
@@ -30,7 +30,7 @@ docs/                  # 웹 앱 소스 (Capacitor webDir, GitHub Pages 배포)
 ├── index.html         # 메인 진입점
 ├── script.js          # DataManager + UI 로직
 ├── style.css          # 스타일
-├── config.js          # Supabase 자격증명 (CI 주입)
+├── config.js          # Firebase 자격증명 (CI 주입)
 ├── privacy.html       # 개인정보 처리방침
 └── manifest.json      # PWA 매니페스트
 
@@ -48,7 +48,7 @@ ios/App/               # iOS 네이티브
 ## Getting Started
 
 ### Web
-1. `docs/config.example.js`를 `docs/config.js`로 복사하고 Supabase 자격증명 입력
+1. `docs/config.example.js`를 `docs/config.js`로 복사하고 Firebase 자격증명 입력
 2. `docs/index.html`을 브라우저에서 열거나 정적 서버로 서빙
 3. 자격증명 없이도 Guest Mode로 동작
 

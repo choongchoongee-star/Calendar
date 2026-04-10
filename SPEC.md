@@ -1,7 +1,7 @@
 # 채우다 (Chaeuda) — Calendar 기획서
 
-> 마지막 업데이트: 2026-04-10
-> 현재 Phase: Phase 3 완료 (iOS 위젯 + 딥링크 + 알림)
+> 마지막 업데이트: 2026-04-11
+> 현재 Phase: Phase 4 완료 (Firebase 마이그레이션)
 
 ---
 
@@ -9,8 +9,8 @@
 
 - **앱 이름:** 채우다 (Chaeuda) — App ID: `com.dangmoo.calendar`
 - **목적:** 개인 및 공유 일정 관리를 위한 반응형 크로스플랫폼 캘린더 앱
-- **핵심 제약사항:** 정적 호스팅 (GitHub Pages), iOS Capacitor 래퍼, Supabase 백엔드
-- **기술 스택:** Vanilla JS (ES6+) + Capacitor 7 + Supabase + iOS WidgetKit + SwiftUI
+- **핵심 제약사항:** 정적 호스팅 (GitHub Pages), iOS Capacitor 래퍼, Firebase 백엔드
+- **기술 스택:** Vanilla JS (ES6+) + Capacitor 7 + Firebase (Auth, Firestore, Storage) + iOS WidgetKit + SwiftUI
 - **주요 사용자:** Charlie + 공유 달력 구성원
 
 ---
@@ -24,7 +24,7 @@ Calendar/
 │   ├── index.html           # 메인 진입점 + 모달 정의
 │   ├── script.js            # 핵심 DataManager & UI 로직 (~1,470줄)
 │   ├── style.css            # 전체 스타일
-│   ├── config.js            # Supabase 자격증명 (CI 주입, 커밋 안 함)
+│   ├── config.js            # Firebase 자격증명 (CI 주입, 커밋 안 함)
 │   ├── config.example.js    # 설정 예시
 │   ├── privacy.html         # 개인정보 처리방침
 │   └── manifest.json        # PWA 매니페스트
@@ -43,7 +43,7 @@ Calendar/
 ### 핵심 데이터 흐름
 ```
 웹 앱 (JS)
-  → Supabase Client (Auth + DB)
+  → Firebase SDK (Auth + Firestore + Storage)
   → updateWidgetCalendar() 호출
   → WidgetBridge.setSelectedCalendar()
   → SharedUserDefaults (group.com.dangmoo.calendar)
@@ -51,8 +51,8 @@ Calendar/
 ```
 
 ### 외부 의존성
-- Supabase (Auth, PostgreSQL DB, Storage) — CDN으로 JS SDK 로드
-- Apple Sign-In (iOS: `@capacitor-community/apple-sign-in` 플러그인, Web: OAuth 폴백)
+- Firebase (Auth, Firestore, Storage) — CDN으로 JS SDK (compat v10) 로드
+- Apple Sign-In (iOS: `@capacitor-community/apple-sign-in` 플러그인, Web: Firebase popup)
 - `@capacitor/local-notifications` — 일정 알림
 - `@capacitor/app` — 딥링크 수신, 앱 상태 변경 감지
 - GitHub Actions (iOS 빌드 자동화 → TestFlight, Pages 배포)
@@ -62,35 +62,29 @@ Calendar/
 
 ## 3. 데이터 모델
 
-### Supabase 테이블
+### Firestore 컬렉션
 
-#### calendars
+#### calendars/{calendarId}
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| `id` | UUID | Primary Key |
 | `title` | string | 달력 이름 |
-| `owner_id` | UUID | FK → auth.users |
-| `created_at` | timestamp | 생성 시각 |
+| `ownerId` | string | Firebase Auth UID |
+| `createdAt` | timestamp | 생성 시각 |
+| `members` | map | `{userId: "editor" \| "viewer"}` |
 
-#### schedules
+#### schedules/{scheduleId}
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| `id` | UUID | Primary Key |
-| `calendar_id` | UUID | FK → calendars |
+| `calendarId` | string | 연결된 달력 ID |
 | `text` | string | 일정 제목 |
-| `start_date` | date | YYYY-MM-DD |
-| `end_date` | date | YYYY-MM-DD |
-| `start_time` | time | HH:mm (선택) |
-| `end_time` | time | HH:mm (선택) |
+| `startDate` | string | YYYY-MM-DD |
+| `endDate` | string | YYYY-MM-DD |
+| `startTime` | string \| null | HH:mm (선택) |
+| `endTime` | string \| null | HH:mm (선택) |
 | `color` | string | Hex 색상 코드 |
-| `group_id` | string | 반복 일정 그룹 ID |
+| `groupId` | string \| null | 반복 일정 그룹 ID |
 
-#### calendar_members
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| `calendar_id` | UUID | FK → calendars |
-| `user_id` | UUID | FK → auth.users |
-| `role` | string | 'editor' / 'viewer' |
+> 기존 Supabase `calendar_members` 테이블은 `calendars` 문서의 `members` map으로 내장됨.
 
 ### LocalStorage (Guest Mode)
 - `isGuest`: boolean
@@ -103,10 +97,10 @@ Calendar/
 
 ### 4.1 인증
 - **Guest Mode:** localStorage 기반, 디바이스 로컬 저장, 공유 불가, 미로그인 시 자동 진입
-- **Google OAuth:** 웹 리다이렉션 플로우 (implicit flow)
-- **Apple Sign-In:** iOS 네이티브 플러그인 (nonce+idToken), 웹 폴백
-- **세션:** 자동 갱신, OAuth 리다이렉트 해시 파싱, PKCE 리다이렉트 감지
-- **계정 탈퇴:** 소유 캘린더 전체 삭제 후 로그아웃 (Guest는 localStorage 초기화)
+- **Google OAuth:** Firebase Auth popup 플로우
+- **Apple Sign-In:** iOS 네이티브 플러그인 (nonce+idToken → Firebase credential), 웹 popup
+- **세션:** Firebase `onAuthStateChanged` 자동 감지
+- **계정 탈퇴:** Firestore 데이터 삭제 후 `user.delete()` (Guest는 localStorage 초기화)
 - **구현 상태:** ✅ 완료
 
 ### 4.2 달력 관리 (CRUD)
@@ -155,16 +149,15 @@ Calendar/
 
 | 기능 | 방식 | 설명 |
 |------|------|------|
-| 달력 조회 | Supabase Client SDK | RLS로 소유/멤버 달력만 반환 |
-| 일정 CRUD | Supabase Client SDK | RLS 적용 |
-| `.ics` 업로드 | Supabase Storage | 공개 구독용 |
+| 달력 조회 | Firebase Firestore SDK | Security Rules로 소유/멤버 달력만 반환 |
+| 일정 CRUD | Firebase Firestore SDK | Security Rules 적용 |
+| `.ics` 업로드 | Firebase Storage | 공개 구독용 |
 | 위젯 동기화 | WidgetBridge Capacitor Plugin | SharedUserDefaults 경유 |
 
 ### Widget SharedUserDefaults 키
 | 키 | 설명 |
 |----|------|
-| `selectedCalendarId` | 현재 활성 달력 UUID |
-| `supabaseAuthToken` | JWT (RLS 인증용) |
+| `selectedCalendarId` | 현재 활성 달력 ID |
 | `allCalendars` | 달력 메타데이터 목록 |
 | `widgetMonthOffset` | 위젯 월 이동 오프셋 |
 
@@ -192,6 +185,15 @@ Calendar/
 - [x] 로컬 푸시 알림 (일정 30분 전)
 - [x] App Store 출시 준비 (Privacy Manifest, arm64, 개인정보 처리방침)
 - [x] 보안/QA 유지보수 (10건 중 8건 자동 수정 완료)
+
+### ✅ Phase 4 — Firebase 마이그레이션
+- [x] Supabase Auth → Firebase Auth (Google, Apple Sign-In, Guest Mode)
+- [x] PostgreSQL → Firestore (calendars, schedules 컬렉션)
+- [x] calendar_members 테이블 → calendars 문서 내 members map
+- [x] Supabase Storage → Firebase Storage (.ics 파일)
+- [x] CI/CD 워크플로 업데이트 (GitHub Secrets 변경)
+- [x] 데이터 마이그레이션 스크립트 (Node.js 일회성)
+- [x] 계정 완전 삭제 구현 (Firebase Auth 클라이언트 삭제)
 
 ---
 
@@ -221,7 +223,6 @@ Calendar/
 
 - 복잡한 동시 편집 충돌 해결
 - 오프라인 모드 (로그인 사용자 기준)
-- 계정의 auth.users 완전 삭제 (Edge Function 필요)
 
 ---
 
@@ -236,13 +237,13 @@ Calendar/
 - [x] 폴리시: HTML lang="en"→"ko", 체크마크 "(V)"→"✓", console.log 제거
 
 ### 미해결 (human review 필요)
-- [ ] **Supabase 클라이언트 null 시 앱 초기화 차단** — `if (!DataManager.client) { return; }` (script.js:750)가 guest mode 폴백까지 건너뜀. 프로덕션에서는 Supabase가 항상 주입되므로 현재 영향 없으나, 로컬 개발 시 빈 화면 문제 발생. 구조적 리팩터링 필요.
 - [ ] **공휴일 데이터 2026년 하드코딩** — script.js `getHolidaysForWeek()`와 CalendarWidget.swift `holidayData`가 모두 2026년만 포함. 2027년부터 공휴일 미표시. 음력 공휴일(설날/추석/석가탄신일)은 API 또는 멀티년 테이블 필요.
 
 ---
 
 ## 10. 유지보수 기록
 
+- **2026-04-11:** Phase 4 — Supabase → Firebase 마이그레이션 완료 (Auth, Firestore, Storage, CI/CD)
 - **2026-04-10:** 보안 점검 — git 이력에서 .p8 프라이빗 키 완전 삭제, 민감 파일 7개 추적 해제, .gitignore 보강
 - **2026-04-04:** 자동 유지보수 실행 — 10건 점검, 8건 자동 수정, 2건 human review 보류 (상세: `maintenance_report.md`)
 - **2026-03 중순:** Phase 3 기능 완성 (위젯, 딥링크, 알림, App Store 준비)
