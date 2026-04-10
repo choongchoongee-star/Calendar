@@ -1100,7 +1100,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!linkInput) return;
             
             if (DataManager.currentCalendarId) {
-                linkInput.value = `${SUPABASE_URL}/storage/v1/object/public/calendars/calendar-${DataManager.currentCalendarId}.ics`;
+                const storageRef = DataManager.storage ? DataManager.storage.ref(`ics/calendar-${DataManager.currentCalendarId}.ics`) : null;
+                if (storageRef) {
+                    storageRef.getDownloadURL().then(url => { linkInput.value = url; }).catch(() => { linkInput.value = "링크 생성 중..."; });
+                } else {
+                    linkInput.value = "로그인 후 사용 가능합니다.";
+                }
             } else {
                 linkInput.value = "캘린더를 선택해주세요.";
             }
