@@ -1,4 +1,10 @@
-// Copy this file to config.js and fill in your actual credentials.
+// Copy this file to config.js and fill in your actual Firebase credentials.
 // NEVER commit config.js to git.
-const SUPABASE_URL = 'https://YOUR_PROJECT_ID.supabase.co';
-const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const firebaseConfig = {
+  apiKey: 'YOUR_API_KEY',
+  authDomain: 'YOUR_PROJECT.firebaseapp.com',
+  projectId: 'YOUR_PROJECT_ID',
+  storageBucket: 'YOUR_PROJECT.firebasestorage.app',
+  messagingSenderId: 'YOUR_SENDER_ID',
+  appId: 'YOUR_APP_ID'
+};
