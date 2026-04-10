@@ -21,3 +21,5 @@ history.log
 # Logs & automation artifacts
 logs/
 auto-status.json
+
+migrate.js
