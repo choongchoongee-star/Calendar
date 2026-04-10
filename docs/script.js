@@ -1,5 +1,5 @@
-// --- Supabase Configuration ---
-// Credentials are loaded from config.js (injected by CI, not committed)
+// --- Firebase Configuration ---
+// Config is loaded from config.js (injected by CI, not committed)
 
 // Crypto helpers for Apple Sign-In
 const generateNonce = (length = 16) => {
@@ -105,32 +105,41 @@ const DataManager = {
         }
     },
 
-    init(url, key) {
-        if (typeof window.supabase === 'undefined') {
-            console.error("Supabase SDK not loaded.");
+    init(config) {
+        if (typeof firebase === 'undefined') {
+            console.error("Firebase SDK not loaded.");
             return;
         }
-        this.client = window.supabase.createClient(url, key, {
-            auth: { flowType: 'implicit' }
-        });
+        firebase.initializeApp(config);
+        this.auth = firebase.auth();
+        this.db = firebase.firestore();
+        this.storage = firebase.storage();
+        this.client = true; // Keep truthy check for existing guard at line 750
     },
 
     async checkSession() {
-        // Check if guest mode was previously active
         if (localStorage.getItem('isGuest') === 'true') {
             this.isGuest = true;
             this.session = { user: { id: 'guest', email: 'guest@local' } };
             return this.session;
         }
 
-        if (!this.client) {
-            console.error("Supabase client not initialized.");
+        if (!this.auth) {
+            console.error("Firebase Auth not initialized.");
             return null;
         }
-        const { data: { session }, error } = await this.client.auth.getSession();
-        if (error) console.error("Session check error:", error);
-        this.session = session;
-        return session;
+
+        return new Promise((resolve) => {
+            const unsubscribe = this.auth.onAuthStateChanged((user) => {
+                unsubscribe();
+                if (user) {
+                    this.session = { user: { id: user.uid, email: user.email } };
+                } else {
+                    this.session = null;
+                }
+                resolve(this.session);
+            });
+        });
     },
 
     async enableGuestMode() {
@@ -162,17 +171,17 @@ const DataManager = {
             return;
         }
 
-        if (!this.client) {
-            alert("로그인 서비스를 사용할 수 없습니다. (Supabase 초기화 실패)");
+        if (!this.auth) {
+            alert("로그인 서비스를 사용할 수 없습니다. (Firebase 초기화 실패)");
             return;
         }
 
         try {
             // 1. Native Apple Sign-In (iOS)
-            if (provider === 'apple' && 
-                window.Capacitor && 
+            if (provider === 'apple' &&
+                window.Capacitor &&
                 window.Capacitor.isNativePlatform()) {
-                
+
                 const AppleSignIn = window.Capacitor.Plugins.SignInWithApple;
                 if (AppleSignIn) {
                     try {
@@ -182,18 +191,18 @@ const DataManager = {
                         const result = await AppleSignIn.authorize({
                             clientId: 'com.dangmoo.calendar',
                             scopes: 'email name',
-                            redirectURI: `${SUPABASE_URL}/auth/v1/callback`,
+                            redirectURI: '',
                             nonce: hashedNonce
                         });
 
                         if (result.response && result.response.identityToken) {
-                            const { data, error } = await this.client.auth.signInWithIdToken({
-                                provider: 'apple',
-                                token: result.response.identityToken,
-                                nonce: rawNonce, 
-                            });
-                            if (error) throw error;
-                            this.session = data.session;
+                            const oauthCredential = firebase.auth.OAuthProvider.credential(
+                                'apple.com',
+                                result.response.identityToken,
+                                rawNonce
+                            );
+                            const userCredential = await this.auth.signInWithCredential(oauthCredential);
+                            this.session = { user: { id: userCredential.user.uid, email: userCredential.user.email } };
                             document.getElementById('login-modal').style.display = 'none';
                             document.getElementById('app').style.filter = 'none';
                             if (window.initializeCalendar) window.initializeCalendar();
@@ -203,29 +212,29 @@ const DataManager = {
                         }
                     } catch (nativeError) {
                         console.error("Native Apple Sign-In error:", nativeError);
-                        // Fallthrough to web login if native fails
                     }
-                } else {
-                    console.warn("SignInWithApple plugin not found in Capacitor Plugins.");
                 }
             }
 
-            // 2. Web OAuth (Fallback & Default)
-            // Clear guest mode so the OAuth callback doesn't return a stale guest session
+            // 2. Web OAuth (Popup)
             localStorage.removeItem('isGuest');
-            // Ensure trailing slash for GitHub Pages to prevent 301 redirects dropping the hash
-            let redirectUrl = window.location.href.split('?')[0].split('#')[0].replace(/\/index\.html$/, '');
-            if (!redirectUrl.endsWith('/')) {
-                redirectUrl += '/';
+            let authProvider;
+            if (provider === 'google') {
+                authProvider = new firebase.auth.GoogleAuthProvider();
+            } else if (provider === 'apple') {
+                authProvider = new firebase.auth.OAuthProvider('apple.com');
+                authProvider.addScope('email');
+                authProvider.addScope('name');
             }
-            const { error } = await this.client.auth.signInWithOAuth({
-                provider: provider,
-                options: {
-                    redirectTo: redirectUrl
-                }
-            });
-            if (error) alert("로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+
+            const userCredential = await this.auth.signInWithPopup(authProvider);
+            this.session = { user: { id: userCredential.user.uid, email: userCredential.user.email } };
+            document.getElementById('login-modal').style.display = 'none';
+            document.getElementById('app').style.filter = 'none';
+            if (window.initializeCalendar) window.initializeCalendar();
+            if (window.checkInvite) window.checkInvite();
         } catch (e) {
+            console.error("Sign-in error:", e);
             alert("로그인 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
         }
     },
@@ -237,7 +246,7 @@ const DataManager = {
             window.location.reload();
             return;
         }
-        await this.client.auth.signOut();
+        await this.auth.signOut();
         window.location.reload();
     },
 
@@ -249,18 +258,27 @@ const DataManager = {
         }
 
         if (!this.session) return;
+        const userId = this.session.user.id;
 
         // 1. Delete all calendars owned by the user
-        // (Assuming schedules and members are linked with ON DELETE CASCADE in DB)
-        const { error: deleteError } = await this.client
-            .from('calendars')
-            .delete()
-            .eq('owner_id', this.session.user.id);
+        const calendarsSnap = await this.db.collection('calendars')
+            .where('ownerId', '==', userId).get();
+        const batch = this.db.batch();
+        for (const doc of calendarsSnap.docs) {
+            // Delete associated schedules
+            const schedulesSnap = await this.db.collection('schedules')
+                .where('calendarId', '==', doc.id).get();
+            schedulesSnap.docs.forEach(s => batch.delete(s.ref));
+            batch.delete(doc.ref);
+        }
+        await batch.commit();
 
-        if (deleteError) throw deleteError;
-
-        // 2. Sign out (Full account deletion from auth.users requires a backend Edge Function)
-        await this.signOut();
+        // 2. Delete Firebase Auth account (client-side — no Edge Function needed!)
+        const user = this.auth.currentUser;
+        if (user) {
+            await user.delete();
+        }
+        window.location.reload();
     },
 
     async fetchCalendars() {
@@ -664,35 +682,13 @@ const CalendarUtils = {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // Expose initializeCalendar immediately so it's available for Guest login
     window.initializeCalendar = initializeCalendar;
 
-    // 1. Initialize Supabase (only if credentials are available)
-    if (typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_KEY !== 'undefined' && SUPABASE_URL && SUPABASE_KEY) {
-        DataManager.init(SUPABASE_URL, SUPABASE_KEY);
+    // 1. Initialize Firebase (only if config is available)
+    if (typeof firebaseConfig !== 'undefined' && firebaseConfig.apiKey) {
+        DataManager.init(firebaseConfig);
     } else {
-        console.warn("Supabase credentials not found. Running in guest-only mode.");
-    }
-
-    // FIX: Manually handle OAuth redirect hash if Supabase auto-detect fails on mobile
-    if (window.location.hash && window.location.hash.includes('access_token')) {
-        const params = new URLSearchParams(window.location.hash.substring(1));
-        const accessToken = params.get('access_token');
-        const refreshToken = params.get('refresh_token');
-        
-        if (accessToken && refreshToken) {
-            const { data, error } = await DataManager.client.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken
-            });
-            if (!error && data.session) {
-                // Do not clear hash immediately if you want Supabase to also see it,
-                // but usually setSession is enough. We can clean it.
-                window.location.hash = ''; 
-            } else {
-                console.warn("Manual Session Recovery Failed:", error);
-            }
-        }
+        console.warn("Firebase config not found. Running in guest-only mode.");
     }
 
     // 2. Select Elements
@@ -702,65 +698,59 @@ document.addEventListener('DOMContentLoaded', async () => {
     const loginGuestBtn = document.getElementById('login-guest-btn');
     const appContainer = document.getElementById('app');
 
-    // Login Handler Wrapper
     const handleLogin = (provider) => {
         DataManager.signIn(provider);
     };
 
-    // Attach Listeners Immediately (Do not wait for async session check)
     loginAppleBtn.addEventListener('click', () => handleLogin('apple'));
     loginGoogleBtn.addEventListener('click', () => handleLogin('google'));
     loginGuestBtn.addEventListener('click', () => handleLogin('guest'));
-    
+
     // Check for pending invite
     async function checkInvite() {
-        window.checkInvite = checkInvite; // Expose
+        window.checkInvite = checkInvite;
         const urlParams = new URLSearchParams(window.location.search);
         const inviteCalendarId = urlParams.get('invite_calendar_id');
-        
-        if (inviteCalendarId && DataManager.session) {
-             if (DataManager.isGuest) {
-                 alert("공유 캘린더에 참여하려면 로그인이 필요합니다. 로그인 후 다시 링크를 클릭해주세요.");
-                 const newUrl = window.location.href.split('?')[0];
-                 window.history.replaceState({}, document.title, newUrl);
-                 return;
-             }
 
-             // Clean URL
-             const newUrl = window.location.href.split('?')[0];
-             window.history.replaceState({}, document.title, newUrl);
-             
-             if (confirm("초대받은 캘린더에 참여하시겠습니까?")) {
-                 try {
-                     await DataManager.joinCalendar(inviteCalendarId);
-                     alert("캘린더에 참여했습니다!");
-                     if (window.refreshCalendarApp) {
-                         await window.refreshCalendarApp(inviteCalendarId);
-                     } else {
-                         window.location.reload();
-                     }
-                 } catch (e) {
-                     alert("참여 실패: " + e.message);
-                 }
-             }
+        if (inviteCalendarId && DataManager.session) {
+            if (DataManager.isGuest) {
+                alert("공유 캘린더에 참여하려면 로그인이 필요합니다. 로그인 후 다시 링크를 클릭해주세요.");
+                const newUrl = window.location.href.split('?')[0];
+                window.history.replaceState({}, document.title, newUrl);
+                return;
+            }
+
+            const newUrl = window.location.href.split('?')[0];
+            window.history.replaceState({}, document.title, newUrl);
+
+            if (confirm("초대받은 캘린더에 참여하시겠습니까?")) {
+                try {
+                    await DataManager.joinCalendar(inviteCalendarId);
+                    alert("캘린더에 참여했습니다!");
+                    if (window.refreshCalendarApp) {
+                        await window.refreshCalendarApp(inviteCalendarId);
+                    } else {
+                        window.location.reload();
+                    }
+                } catch (e) {
+                    alert("참여 실패: " + e.message);
+                }
+            }
         }
     }
 
-    // Subscribe to Auth Changes (Required for Mobile Web Redirects)
+    // Firebase Auth state listener (replaces Supabase onAuthStateChange)
     if (!DataManager.client) { return; }
-    DataManager.client.auth.onAuthStateChange(async (event, session) => {
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-            if (session) {
-                DataManager.session = session;
-                loginModal.style.display = 'none';
-                appContainer.style.filter = 'none';
-                // Safe way to init if it hasn't run yet
-                if (window.initializeCalendar) {
-                    window.initializeCalendar();
-                }
-                await checkInvite();
+    DataManager.auth.onAuthStateChanged(async (user) => {
+        if (user) {
+            DataManager.session = { user: { id: user.uid, email: user.email } };
+            loginModal.style.display = 'none';
+            appContainer.style.filter = 'none';
+            if (window.initializeCalendar) {
+                window.initializeCalendar();
             }
-        } else if (event === 'SIGNED_OUT') {
+            await checkInvite();
+        } else if (!DataManager.isGuest) {
             loginModal.style.display = 'flex';
             appContainer.style.filter = 'blur(5px)';
             DataManager.session = null;
@@ -768,35 +758,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Check Session (Initial Load)
-    const urlSearchParams = new URLSearchParams(window.location.search);
-    const isPKCERedirect = urlSearchParams.has('code');
-    const isHashRedirect = window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('refresh_token'));
-    const isRedirecting = isPKCERedirect || isHashRedirect;
     const session = await DataManager.checkSession();
-    
+
     if (session) {
         loginModal.style.display = 'none';
         appContainer.style.filter = 'none';
         initializeCalendar();
         checkInvite();
-        // Force an immediate sync after initialization
         setTimeout(() => {
             DataManager.updateWidgetCalendar();
         }, 1500);
-    } else if (isRedirecting) {
-        // Do NOT show modal. Wait for onAuthStateChange to fire.
-        loginModal.style.display = 'none';
-        
-        // Fallback: If auth doesn't resolve in 10 seconds, show login
-        setTimeout(() => {
-            if (!DataManager.session) {
-                console.warn("Auth timeout.");
-                loginModal.style.display = 'flex';
-                appContainer.style.filter = 'blur(5px)';
-            }
-        }, 10000);
     } else {
-        // Auto-enable Guest Mode instead of showing login modal
+        // Auto-enable Guest Mode
         await DataManager.enableGuestMode();
         loginModal.style.display = 'none';
         appContainer.style.filter = 'none';
