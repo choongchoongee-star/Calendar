@@ -299,27 +299,39 @@ const DataManager = {
         }
 
         if (!this.session) return [];
-        const { data, error } = await this.client.from('calendars').select('*');
-        if (error) {
-            console.error("Error fetching calendars:", error);
-            throw error;
-        }
-        this.calendars = data;
+        const userId = this.session.user.id;
+
+        // Fetch calendars where user is owner
+        const ownedSnap = await this.db.collection('calendars')
+            .where('ownerId', '==', userId).get();
+
+        // Fetch calendars where user is a member
+        const memberSnap = await this.db.collection('calendars')
+            .where(`members.${userId}`, 'in', ['editor', 'viewer']).get();
+
+        const calendarMap = new Map();
+        ownedSnap.docs.forEach(doc => calendarMap.set(doc.id, { id: doc.id, ...doc.data() }));
+        memberSnap.docs.forEach(doc => {
+            if (!calendarMap.has(doc.id)) {
+                calendarMap.set(doc.id, { id: doc.id, ...doc.data() });
+            }
+        });
+        this.calendars = Array.from(calendarMap.values());
 
         // If no calendar exists, create a default one
         if (this.calendars.length === 0) {
             await this.createCalendar("내 캘린더");
             return await this.fetchCalendars();
         }
-        
+
         // Select first calendar by default if none selected
         if (!this.currentCalendarId && this.calendars.length > 0) {
             this.currentCalendarId = this.calendars[0].id;
         }
-        
+
         // Always sync with widget when calendars are fetched
         this.updateWidgetCalendar();
-        
+
         return this.calendars;
     },
 
@@ -340,20 +352,13 @@ const DataManager = {
         }
 
         if (!this.session || !this.session.user) throw new Error("로그인이 필요합니다.");
-        const { data, error } = await this.client.from('calendars').insert([{
-            title: title, 
-            owner_id: this.session.user.id 
-        }]).select(); // Return the created row
-        
-        if (error) {
-            console.error("Create calendar error:", error);
-            throw error;
-        }
-        
-        // Auto-select the new calendar
-        if (data && data.length > 0) {
-            this.currentCalendarId = data[0].id;
-        }
+        const docRef = await this.db.collection('calendars').add({
+            title: title,
+            ownerId: this.session.user.id,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            members: {}
+        });
+        this.currentCalendarId = docRef.id;
         this.updateWidgetCalendar();
     },
 
@@ -369,8 +374,7 @@ const DataManager = {
         }
 
         if (!this.session) throw new Error("로그인이 필요합니다.");
-        const { error } = await this.client.from('calendars').update({ title: title }).eq('id', id);
-        if (error) throw error;
+        await this.db.collection('calendars').doc(id).update({ title: title });
     },
 
     async deleteCalendar(id) {
@@ -392,31 +396,25 @@ const DataManager = {
         }
 
         if (!this.session) throw new Error("로그인이 필요합니다.");
-        
-        // Check ownership first
-        const { data: calendar, error: fetchError } = await this.client
-            .from('calendars')
-            .select('owner_id')
-            .eq('id', id)
-            .single();
-            
-        if (fetchError) throw fetchError;
+        const calDoc = await this.db.collection('calendars').doc(id).get();
+        if (!calDoc.exists) throw new Error("캘린더를 찾을 수 없습니다.");
+        const calData = calDoc.data();
 
-        if (calendar.owner_id === this.session.user.id) {
-            // I am the owner -> Delete completely
-            const { error } = await this.client.from('calendars').delete().eq('id', id);
-            if (error) throw error;
+        if (calData.ownerId === this.session.user.id) {
+            // I am the owner -> Delete calendar + associated schedules
+            const schedulesSnap = await this.db.collection('schedules')
+                .where('calendarId', '==', id).get();
+            const batch = this.db.batch();
+            schedulesSnap.docs.forEach(s => batch.delete(s.ref));
+            batch.delete(calDoc.ref);
+            await batch.commit();
         } else {
-            // I am a member -> Leave calendar
-            const { error } = await this.client
-                .from('calendar_members')
-                .delete()
-                .eq('calendar_id', id)
-                .eq('user_id', this.session.user.id);
-            if (error) throw error;
+            // I am a member -> Remove myself from members map
+            await this.db.collection('calendars').doc(id).update({
+                [`members.${this.session.user.id}`]: firebase.firestore.FieldValue.delete()
+            });
         }
-        
-        // Reset selection if needed
+
         if (this.currentCalendarId === id) {
             this.currentCalendarId = null;
             this.updateWidgetCalendar();
@@ -425,25 +423,19 @@ const DataManager = {
 
     async joinCalendar(calendarId) {
         if (!this.session || !this.session.user) throw new Error("로그인이 필요합니다.");
-        
-        // 1. Check if already a member
-        const { data: existing, error: checkError } = await this.client
-            .from('calendar_members')
-            .select('id')
-            .eq('calendar_id', calendarId)
-            .eq('user_id', this.session.user.id)
-            .single();
-            
-        if (existing) return; // Already joined
+        const userId = this.session.user.id;
 
-        // 2. Insert into calendar_members
-        const { error } = await this.client.from('calendar_members').insert([{
-            calendar_id: calendarId,
-            user_id: this.session.user.id,
-            role: 'editor'
-        }]);
-        
-        if (error) throw error;
+        const calDoc = await this.db.collection('calendars').doc(calendarId).get();
+        if (!calDoc.exists) throw new Error("캘린더를 찾을 수 없습니다.");
+
+        const calData = calDoc.data();
+        if (calData.ownerId === userId || (calData.members && calData.members[userId])) {
+            return; // Already owner or member
+        }
+
+        await this.db.collection('calendars').doc(calendarId).update({
+            [`members.${userId}`]: 'editor'
+        });
     },
 
     async fetchSchedules() {
@@ -466,32 +458,36 @@ const DataManager = {
             return this.schedules;
         }
 
-        if (!this.client || !this.currentCalendarId) return [];
-        const { data, error } = await this.client
-            .from('schedules')
-            .select('*')
-            .eq('calendar_id', this.currentCalendarId); // Filter by Calendar ID
-            
-        if (error) throw error;
-        
-        this.schedules = data ? data.map(item => ({
-            id: item.id,
-            text: item.text,
-            startDate: item.start_date,
-            endDate: item.end_date,
-            startTime: item.start_time,
-            endTime: item.end_time,
-            groupId: item.group_id,
-            color: item.color,
-            calendarId: item.calendar_id
-        })) : [];
-        
-        // Cache for widget sync if needed
-        localStorage.setItem('schedules_cache', JSON.stringify(data || []));
-        
-        // Sync with widget after schedules are loaded
+        if (!this.db || !this.currentCalendarId) return [];
+        const snap = await this.db.collection('schedules')
+            .where('calendarId', '==', this.currentCalendarId).get();
+
+        this.schedules = snap.docs.map(doc => {
+            const d = doc.data();
+            return {
+                id: doc.id,
+                text: d.text,
+                startDate: d.startDate,
+                endDate: d.endDate,
+                startTime: d.startTime || null,
+                endTime: d.endTime || null,
+                groupId: d.groupId || null,
+                color: d.color,
+                calendarId: d.calendarId
+            };
+        });
+
+        // Cache for widget sync
+        localStorage.setItem('schedules_cache', JSON.stringify(
+            this.schedules.map(s => ({
+                id: s.id, text: s.text,
+                start_date: s.startDate, end_date: s.endDate,
+                start_time: s.startTime, end_time: s.endTime,
+                color: s.color, calendar_id: s.calendarId
+            }))
+        ));
+
         this.updateWidgetCalendar();
-        
         return this.schedules;
     },
 
@@ -508,10 +504,18 @@ const DataManager = {
             return;
         }
 
-        if (!this.client) throw new Error("Supabase not initialized");
-        const { error } = await this.client.from('schedules').insert([payload]);
-        if (error) throw error;
-        await this.fetchSchedules(); // Refresh memory state before sync
+        if (!this.db) throw new Error("Firebase not initialized");
+        await this.db.collection('schedules').add({
+            calendarId: payload.calendar_id,
+            text: payload.text,
+            startDate: payload.start_date,
+            endDate: payload.end_date,
+            startTime: payload.start_time || null,
+            endTime: payload.end_time || null,
+            color: payload.color || '#5DA2D5',
+            groupId: payload.group_id || null
+        });
+        await this.fetchSchedules();
     },
     
     async addSchedules(payloads) {
@@ -527,10 +531,23 @@ const DataManager = {
             return;
         }
 
-        if (!this.client) throw new Error("Supabase not initialized");
-        const { error } = await this.client.from('schedules').insert(payloads);
-        if (error) throw error;
-        await this.fetchSchedules(); // Refresh memory state before sync
+        if (!this.db) throw new Error("Firebase not initialized");
+        const batch = this.db.batch();
+        payloads.forEach(p => {
+            const ref = this.db.collection('schedules').doc();
+            batch.set(ref, {
+                calendarId: p.calendar_id,
+                text: p.text,
+                startDate: p.start_date,
+                endDate: p.end_date,
+                startTime: p.start_time || null,
+                endTime: p.end_time || null,
+                color: p.color || '#5DA2D5',
+                groupId: p.group_id || null
+            });
+        });
+        await batch.commit();
+        await this.fetchSchedules();
     },
 
     async updateSchedule(id, payload) {
@@ -545,9 +562,16 @@ const DataManager = {
             return;
         }
 
-        if (!this.client) throw new Error("Supabase not initialized");
-        const { error } = await this.client.from('schedules').update(payload).eq('id', id);
-        if (error) throw error;
+        if (!this.db) throw new Error("Firebase not initialized");
+        const updateData = {};
+        if (payload.text !== undefined) updateData.text = payload.text;
+        if (payload.start_date !== undefined) updateData.startDate = payload.start_date;
+        if (payload.end_date !== undefined) updateData.endDate = payload.end_date;
+        if (payload.start_time !== undefined) updateData.startTime = payload.start_time;
+        if (payload.end_time !== undefined) updateData.endTime = payload.end_time;
+        if (payload.color !== undefined) updateData.color = payload.color;
+        if (payload.group_id !== undefined) updateData.groupId = payload.group_id;
+        await this.db.collection('schedules').doc(id).update(updateData);
         await this.fetchSchedules();
     },
 
@@ -560,9 +584,8 @@ const DataManager = {
             return;
         }
 
-        if (!this.client) throw new Error("Supabase not initialized");
-        const { error } = await this.client.from('schedules').delete().eq('id', id);
-        if (error) throw error;
+        if (!this.db) throw new Error("Firebase not initialized");
+        await this.db.collection('schedules').doc(id).delete();
         await this.fetchSchedules();
     },
 
@@ -575,16 +598,19 @@ const DataManager = {
             return;
         }
 
-        if (!this.client) throw new Error("Supabase not initialized");
-        const { error } = await this.client.from('schedules').delete().eq('group_id', groupId);
-        if (error) throw error;
+        if (!this.db) throw new Error("Firebase not initialized");
+        const snap = await this.db.collection('schedules')
+            .where('groupId', '==', groupId).get();
+        const batch = this.db.batch();
+        snap.docs.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
         await this.fetchSchedules();
     },
 
     async syncToCloud() {
         if (this.isGuest) return; // Guest schedules are not synced
 
-        if (!this.client || !this.currentCalendarId) return;
+        if (!this.storage || !this.currentCalendarId) return;
         // Only sync if I am the owner (simplification for now, strictly speaking editors should too)
         // We'll upload to a file named after the Calendar ID to allow multiple subscriptions
         const fileName = `calendar-${this.currentCalendarId}.ics`;
@@ -609,11 +635,12 @@ const DataManager = {
         icsContent += "END:VCALENDAR";
 
         const blob = new Blob([icsContent], { type: 'text/calendar' });
-        const { error } = await this.client.storage
-            .from('calendars')
-            .upload(fileName, blob, { upsert: true });
-            
-        if (error) console.error("Cloud sync failed:", error);
+        const storageRef = this.storage.ref(`ics/${fileName}`);
+        try {
+            await storageRef.put(blob);
+        } catch (err) {
+            console.error("Cloud sync failed:", err);
+        }
     },
     
     getSchedules() { return this.schedules; }
