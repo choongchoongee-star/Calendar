@@ -23,3 +23,4 @@ logs/
 auto-status.json
 
 migrate.js
+firebase-service-account.json

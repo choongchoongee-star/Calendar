@@ -113,7 +113,7 @@ const DataManager = {
         firebase.initializeApp(config);
         this.auth = firebase.auth();
         this.db = firebase.firestore();
-        this.storage = firebase.storage();
+        this.storage = null;
         this.client = true; // Keep truthy check for existing guard at line 750
     },
 
@@ -202,6 +202,10 @@ const DataManager = {
                                 rawNonce
                             );
                             const userCredential = await this.auth.signInWithCredential(oauthCredential);
+                            localStorage.removeItem('isGuest');
+                            this.isGuest = false;
+                            this.calendars = [];
+                            this.currentCalendarId = null;
                             this.session = { user: { id: userCredential.user.uid, email: userCredential.user.email } };
                             document.getElementById('login-modal').style.display = 'none';
                             document.getElementById('app').style.filter = 'none';
@@ -218,6 +222,9 @@ const DataManager = {
 
             // 2. Web OAuth (Popup)
             localStorage.removeItem('isGuest');
+            this.isGuest = false;
+            this.calendars = [];
+            this.currentCalendarId = null;
             let authProvider;
             if (provider === 'google') {
                 authProvider = new firebase.auth.GoogleAuthProvider();
@@ -229,10 +236,7 @@ const DataManager = {
 
             const userCredential = await this.auth.signInWithPopup(authProvider);
             this.session = { user: { id: userCredential.user.uid, email: userCredential.user.email } };
-            document.getElementById('login-modal').style.display = 'none';
-            document.getElementById('app').style.filter = 'none';
-            if (window.initializeCalendar) window.initializeCalendar();
-            if (window.checkInvite) window.checkInvite();
+            window.location.reload();
         } catch (e) {
             console.error("Sign-in error:", e);
             alert("로그인 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
@@ -1099,16 +1103,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const linkInput = document.getElementById('live-link-url');
             if (!linkInput) return;
             
-            if (DataManager.currentCalendarId) {
-                const storageRef = DataManager.storage ? DataManager.storage.ref(`ics/calendar-${DataManager.currentCalendarId}.ics`) : null;
-                if (storageRef) {
-                    storageRef.getDownloadURL().then(url => { linkInput.value = url; }).catch(() => { linkInput.value = "링크 생성 중..."; });
-                } else {
-                    linkInput.value = "로그인 후 사용 가능합니다.";
-                }
-            } else {
-                linkInput.value = "캘린더를 선택해주세요.";
-            }
+            linkInput.value = "현재 사용 불가 (Storage 미연결)";
         }
         
         // --- Core Calendar Logic (Same as before but wrapped) ---
