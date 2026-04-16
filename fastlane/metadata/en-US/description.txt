@@ -1,0 +1,12 @@
+Chaeuda is a shared calendar app for managing schedules with family, partners, and friends.
+
+Key Features:
+- Multiple calendars with sharing — invite anyone with a simple link
+- Cloud sync — access your schedule from anywhere in real time
+- iOS widgets — see today's events at a glance on your home screen
+- Recurring events — daily, weekly, and yearly repeats
+- Korean public holidays displayed automatically
+- Push notifications — get reminded 30 minutes before events
+- Guest mode — start using immediately without signing in
+
+Sign in with Google or Apple and start filling your calendar together.

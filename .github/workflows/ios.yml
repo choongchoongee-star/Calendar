@@ -157,3 +157,33 @@ jobs:
         with:
           name: ios-app
           path: ios/build/*.ipa
+
+  upload_metadata:
+    needs: build
+    runs-on: macos-15
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Write App Store Connect API key
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+        run: |
+          cat > fastlane/api_key.json << KEYEOF
+          {
+            "key_id": "${APP_STORE_CONNECT_KEY_ID}",
+            "issuer_id": "${APP_STORE_CONNECT_ISSUER_ID}",
+            "key": "$(echo "$APP_STORE_CONNECT_API_KEY" | sed 's/$/\\n/' | tr -d '\n')",
+            "in_house": false
+          }
+          KEYEOF
+
+      - name: Install Fastlane
+        run: sudo gem install fastlane
+
+      - name: Upload metadata to App Store Connect
+        run: fastlane ios upload_metadata

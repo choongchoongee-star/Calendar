@@ -1,0 +1,1 @@
+Initial release! Shared calendars, iOS widgets, recurring events, and holiday display.
