@@ -53,10 +53,13 @@ service cloud.firestore {
 
       // Update by owner: unrestricted (full control over their own calendar).
       // Update by non-owner: only to add/remove their own entry in members
-      // (self-join via invite link, or leave the calendar).
+      // (self-join via invite link, or leave the calendar). Non-owners must
+      // not touch any field outside `members` — prevents a member from
+      // renaming or otherwise mutating a shared calendar.
       allow update: if isOwnerOf(resource)
         || (isSignedIn() && selfJoinOnly()
-            && request.resource.data.ownerId == resource.data.ownerId);
+            && request.resource.data.ownerId == resource.data.ownerId
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members']));
 
       allow delete: if isOwnerOf(resource);
     }
