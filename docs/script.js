@@ -215,6 +215,12 @@ const DataManager = {
                         }
                     } catch (nativeError) {
                         console.error("Native Apple Sign-In error:", nativeError);
+                        alert(
+                            "Apple 로그인 실패 (네이티브)\n" +
+                            "code: " + (nativeError.code || "?") + "\n" +
+                            "message: " + (nativeError.message || String(nativeError))
+                        );
+                        return;
                     }
                 }
             }
