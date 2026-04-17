@@ -1,0 +1,83 @@
+rules_version = '2';
+
+// Firestore security rules for the Chaeuda (채우다) calendar app.
+// Data model:
+//   calendars/{calendarId}: { ownerId, title, members: { <uid>: 'editor'|'viewer' }, createdAt }
+//   schedules/{scheduleId}: { calendarId, text, startDate, endDate, startTime, endTime, color, groupId }
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwnerOf(calendarDoc) {
+      return isSignedIn() && calendarDoc.data.ownerId == request.auth.uid;
+    }
+
+    function isMemberOf(calendarDoc) {
+      return isSignedIn()
+        && calendarDoc.data.members is map
+        && calendarDoc.data.members.keys().hasAny([request.auth.uid]);
+    }
+
+    function canReadCalendar(calendarDoc) {
+      return isOwnerOf(calendarDoc) || isMemberOf(calendarDoc);
+    }
+
+    function canWriteSchedule(calendarDoc) {
+      return isOwnerOf(calendarDoc)
+        || (isMemberOf(calendarDoc)
+            && calendarDoc.data.members[request.auth.uid] == 'editor');
+    }
+
+    // A non-owner may either join (add their own uid with a valid role)
+    // or leave (remove their own uid). They may NOT modify an existing
+    // entry — that would let a viewer self-escalate to editor.
+    function selfJoinOnly() {
+      let before = resource.data.members;
+      let after = request.resource.data.members;
+      let changedKeys = after.diff(before).affectedKeys();
+      let isJoining = !(request.auth.uid in before) && (request.auth.uid in after)
+        && after[request.auth.uid] in ['editor', 'viewer'];
+      let isLeaving = (request.auth.uid in before) && !(request.auth.uid in after);
+      return changedKeys.hasOnly([request.auth.uid]) && (isJoining || isLeaving);
+    }
+
+    match /calendars/{calendarId} {
+      allow read: if canReadCalendar(resource);
+
+      // Create: only by a signed-in user who sets themselves as owner.
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid;
+
+      // Update by owner: unrestricted (full control over their own calendar).
+      // Update by non-owner: only to add/remove their own entry in members
+      // (self-join via invite link, or leave the calendar).
+      allow update: if isOwnerOf(resource)
+        || (isSignedIn() && selfJoinOnly()
+            && request.resource.data.ownerId == resource.data.ownerId);
+
+      allow delete: if isOwnerOf(resource);
+    }
+
+    match /schedules/{scheduleId} {
+      // Reading a schedule requires read access to its parent calendar.
+      allow read: if isSignedIn()
+        && canReadCalendar(get(/databases/$(database)/documents/calendars/$(resource.data.calendarId)));
+
+      // Creating a schedule requires write access to the target calendar.
+      allow create: if isSignedIn()
+        && canWriteSchedule(get(/databases/$(database)/documents/calendars/$(request.resource.data.calendarId)));
+
+      // Updating: the schedule must stay in a calendar the user can write to,
+      // and must not be moved to a calendar the user can't write to.
+      allow update: if isSignedIn()
+        && canWriteSchedule(get(/databases/$(database)/documents/calendars/$(resource.data.calendarId)))
+        && canWriteSchedule(get(/databases/$(database)/documents/calendars/$(request.resource.data.calendarId)));
+
+      allow delete: if isSignedIn()
+        && canWriteSchedule(get(/databases/$(database)/documents/calendars/$(resource.data.calendarId)));
+    }
+  }
+}

@@ -99,8 +99,7 @@ const DataManager = {
                 authToken: (this.session && this.session.access_token) ? this.session.access_token : ""
             }).then(() => {
             }).catch(err => {
-                console.error("Widget Sync Bridge Failed:", err);
-                alert("위젯 동기화 중 오류가 발생했습니다.");
+                console.error("Widget sync failed:", err);
             });
         }
     },
@@ -262,27 +261,55 @@ const DataManager = {
         }
 
         if (!this.session) return;
-        const userId = this.session.user.id;
+        // Prevent re-entry if the user taps twice while delete is in flight
+        if (this._deleteInFlight) return;
+        this._deleteInFlight = true;
 
-        // 1. Delete all calendars owned by the user
-        const calendarsSnap = await this.db.collection('calendars')
-            .where('ownerId', '==', userId).get();
-        const batch = this.db.batch();
-        for (const doc of calendarsSnap.docs) {
-            // Delete associated schedules
-            const schedulesSnap = await this.db.collection('schedules')
-                .where('calendarId', '==', doc.id).get();
-            schedulesSnap.docs.forEach(s => batch.delete(s.ref));
-            batch.delete(doc.ref);
-        }
-        await batch.commit();
+        try {
+            const userId = this.session.user.id;
 
-        // 2. Delete Firebase Auth account (client-side — no Edge Function needed!)
-        const user = this.auth.currentUser;
-        if (user) {
-            await user.delete();
+            // 1. Delete all calendars owned by the user
+            const calendarsSnap = await this.db.collection('calendars')
+                .where('ownerId', '==', userId).get();
+            const batch = this.db.batch();
+            for (const doc of calendarsSnap.docs) {
+                // Delete associated schedules
+                const schedulesSnap = await this.db.collection('schedules')
+                    .where('calendarId', '==', doc.id).get();
+                schedulesSnap.docs.forEach(s => batch.delete(s.ref));
+                batch.delete(doc.ref);
+            }
+            await batch.commit();
+
+            // 2. Unlink from shared calendars where user is a member
+            const memberSnap = await this.db.collection('calendars')
+                .where(`members.${userId}`, 'in', ['editor', 'viewer']).get();
+            const memberBatch = this.db.batch();
+            memberSnap.docs.forEach(doc => {
+                memberBatch.update(doc.ref, {
+                    [`members.${userId}`]: firebase.firestore.FieldValue.delete()
+                });
+            });
+            await memberBatch.commit();
+
+            // 3. Delete Firebase Auth account (client-side — no Edge Function needed!)
+            const user = this.auth.currentUser;
+            if (user) {
+                try {
+                    await user.delete();
+                } catch (authErr) {
+                    if (authErr && authErr.code === 'auth/requires-recent-login') {
+                        console.warn("Auth deletion requires recent login; Firestore data already cleaned up:", authErr);
+                        alert("보안을 위해 다시 로그인 후 탈퇴를 시도해 주세요.");
+                        return;
+                    }
+                    throw authErr;
+                }
+            }
+            window.location.reload();
+        } finally {
+            this._deleteInFlight = false;
         }
-        window.location.reload();
     },
 
     async fetchCalendars() {
@@ -344,7 +371,7 @@ const DataManager = {
             const newCalendar = {
                 id: 'guest-cal-' + Date.now(),
                 title: title,
-                owner_id: 'guest',
+                ownerId: 'guest',
                 created_at: new Date().toISOString()
             };
             const calendars = JSON.parse(localStorage.getItem('guest_calendars') || '[]');
@@ -497,19 +524,20 @@ const DataManager = {
 
     async addSchedule(payload) {
         payload.calendar_id = this.currentCalendarId; // Assign to current calendar
-        
+
         if (this.isGuest) {
             const schedules = JSON.parse(localStorage.getItem('guest_schedules') || '[]');
             // Simulate SQL insert
-            const newSchedule = { ...payload, id: 'guest-sch-' + Date.now() + Math.random() };
+            const newId = 'guest-sch-' + Date.now() + Math.random();
+            const newSchedule = { ...payload, id: newId };
             schedules.push(newSchedule);
             localStorage.setItem('guest_schedules', JSON.stringify(schedules));
             await this.fetchSchedules(); // Refresh memory state first
-            return;
+            return newId;
         }
 
         if (!this.db) throw new Error("Firebase not initialized");
-        await this.db.collection('schedules').add({
+        const docRef = await this.db.collection('schedules').add({
             calendarId: payload.calendar_id,
             text: payload.text,
             startDate: payload.start_date,
@@ -520,25 +548,31 @@ const DataManager = {
             groupId: payload.group_id || null
         });
         await this.fetchSchedules();
+        return docRef.id;
     },
-    
+
     async addSchedules(payloads) {
         payloads.forEach(p => p.calendar_id = this.currentCalendarId);
-        
+
         if (this.isGuest) {
             const schedules = JSON.parse(localStorage.getItem('guest_schedules') || '[]');
+            const newIds = [];
             payloads.forEach(p => {
-                schedules.push({ ...p, id: 'guest-sch-' + Date.now() + Math.random() });
+                const newId = 'guest-sch-' + Date.now() + Math.random();
+                newIds.push(newId);
+                schedules.push({ ...p, id: newId });
             });
             localStorage.setItem('guest_schedules', JSON.stringify(schedules));
             await this.fetchSchedules(); // Refresh memory state first
-            return;
+            return newIds;
         }
 
         if (!this.db) throw new Error("Firebase not initialized");
         const batch = this.db.batch();
+        const newIds = [];
         payloads.forEach(p => {
             const ref = this.db.collection('schedules').doc();
+            newIds.push(ref.id);
             batch.set(ref, {
                 calendarId: p.calendar_id,
                 text: p.text,
@@ -552,6 +586,7 @@ const DataManager = {
         });
         await batch.commit();
         await this.fetchSchedules();
+        return newIds;
     },
 
     async updateSchedule(id, payload) {
@@ -580,6 +615,9 @@ const DataManager = {
     },
 
     async deleteSchedule(id) {
+        // Cancel any pending notification first (same in guest + cloud)
+        await cancelScheduleNotification(id);
+
         if (this.isGuest) {
             let schedules = JSON.parse(localStorage.getItem('guest_schedules') || '[]');
             schedules = schedules.filter(s => s.id !== id);
@@ -595,9 +633,13 @@ const DataManager = {
 
     async deleteSchedulesByGroupId(groupId) {
         if (this.isGuest) {
-            let schedules = JSON.parse(localStorage.getItem('guest_schedules') || '[]');
-            schedules = schedules.filter(s => s.group_id !== groupId);
-            localStorage.setItem('guest_schedules', JSON.stringify(schedules));
+            const all = JSON.parse(localStorage.getItem('guest_schedules') || '[]');
+            const matching = all.filter(s => s.group_id === groupId);
+            for (const s of matching) {
+                await cancelScheduleNotification(s.id);
+            }
+            const remaining = all.filter(s => s.group_id !== groupId);
+            localStorage.setItem('guest_schedules', JSON.stringify(remaining));
             await this.fetchSchedules();
             return;
         }
@@ -605,6 +647,9 @@ const DataManager = {
         if (!this.db) throw new Error("Firebase not initialized");
         const snap = await this.db.collection('schedules')
             .where('groupId', '==', groupId).get();
+        for (const doc of snap.docs) {
+            await cancelScheduleNotification(doc.id);
+        }
         const batch = this.db.batch();
         snap.docs.forEach(doc => batch.delete(doc.ref));
         await batch.commit();
@@ -684,7 +729,12 @@ const CalendarUtils = {
             {id: 'h8', text: "추석", startDate: '2026-09-24', endDate: '2026-09-26', type: 'holiday'},
             {id: 'h9', text: "개천절", startDate: '2026-10-03', endDate: '2026-10-03', type: 'holiday'},
             {id: 'h10', text: "한글날", startDate: '2026-10-09', endDate: '2026-10-09', type: 'holiday'},
-            {id: 'h11', text: "성탄절", startDate: '2026-12-25', endDate: '2026-12-25', type: 'holiday'}
+            {id: 'h11', text: "성탄절", startDate: '2026-12-25', endDate: '2026-12-25', type: 'holiday'},
+            {id: 'h12', text: "삼일절 대체", startDate: '2026-03-02', endDate: '2026-03-02', type: 'holiday'},
+            {id: 'h13', text: "부처님오신날 대체", startDate: '2026-05-25', endDate: '2026-05-25', type: 'holiday'},
+            {id: 'h14', text: "광복절 대체", startDate: '2026-08-17', endDate: '2026-08-17', type: 'holiday'},
+            {id: 'h15', text: "추석 대체", startDate: '2026-09-28', endDate: '2026-09-28', type: 'holiday'},
+            {id: 'h16', text: "개천절 대체", startDate: '2026-10-05', endDate: '2026-10-05', type: 'holiday'},
         ];
         return hols.filter(h => {
             const start = new Date(h.startDate + 'T00:00:00');
@@ -921,7 +971,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     loadCalendars(); 
                 };
 
-                const isOwner = cal.owner_id === DataManager.session.user.id;
+                const isOwner = cal.ownerId === DataManager.session.user.id;
                 
                 // Edit Button (Rename)
                 if (isOwner) {
@@ -1268,12 +1318,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             selectedColor = s ? (s.color || colorPalette[0]) : colorPalette[0];
             renderPalette();
             if (s) {
-                modalTitle.textContent = s.groupId ? "일정 수정 (반복)" : "일정 수정";
                 scheduleTextInput.value = s.text; startDateInput.value = s.startDate; endDateInput.value = s.endDate;
                 startTimeInput.value = s.startTime || ''; endTimeInput.value = s.endTime || '';
-                enableRecurrenceCheckbox.checked = !!s.groupId;
-                recurrenceOptions.style.display = s.groupId ? 'block' : 'none';
-                if(s.groupId) recurrenceCountInput.value = 1; // Simplify logic for edit
+                if (s.groupId) {
+                    // Default: edit THIS instance only. User can tick the box to re-define the series.
+                    enableRecurrenceCheckbox.checked = false;
+                    recurrenceOptions.style.display = 'none';
+                    modalTitle.textContent = "일정 수정 (이 일정만)";
+                } else {
+                    enableRecurrenceCheckbox.checked = false;
+                    recurrenceOptions.style.display = 'none';
+                    modalTitle.textContent = "일정 수정";
+                }
             } else {
                 modalTitle.textContent = "일정 추가";
                 startDateInput.value = d; endDateInput.value = d; scheduleTextInput.value = '';
@@ -1285,8 +1341,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         function closeAddScheduleModal() { modal.style.display = 'none'; unlockBodyScroll(); }
 
         async function saveSchedule() {
-            const payload = { 
-                text: scheduleTextInput.value.trim(), start_date: startDateInput.value, end_date: endDateInput.value, 
+            const payload = {
+                text: scheduleTextInput.value.trim(), start_date: startDateInput.value, end_date: endDateInput.value,
                 start_time: startTimeInput.value, end_time: endTimeInput.value, color: selectedColor
             };
             if (!payload.text) return;
@@ -1302,7 +1358,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     for (let i = 0; i < count; i++) {
                         const nextStart = new Date(baseStart);
                         const nextEnd = new Date(baseEnd);
-                        
+
                         if (type === 'daily') {
                             nextStart.setDate(baseStart.getDate() + i);
                             nextEnd.setDate(baseEnd.getDate() + i);
@@ -1313,35 +1369,72 @@ document.addEventListener('DOMContentLoaded', async () => {
                             nextStart.setFullYear(baseStart.getFullYear() + i);
                             nextEnd.setFullYear(baseEnd.getFullYear() + i);
                         }
-                        
+
                         payloads.push({ ...payload, start_date: CalendarUtils.formatDate(nextStart), end_date: CalendarUtils.formatDate(nextEnd), group_id: groupId });
                     }
-                    await DataManager.addSchedules(payloads);
-                    payloads.forEach(p => scheduleScheduleNotification(p));
+                    const newIds = await DataManager.addSchedules(payloads);
+                    payloads.forEach((p, i) => scheduleScheduleNotification({ ...p, id: newIds && newIds[i] }));
+                } else if (editingScheduleId && editingGroupId && !enableRecurrenceCheckbox.checked) {
+                    // Edit a single instance of a recurring series, leaving siblings intact
+                    await cancelScheduleNotification(editingScheduleId);
+                    await DataManager.updateSchedule(editingScheduleId, payload);
+                    scheduleScheduleNotification({ ...payload, id: editingScheduleId });
+                } else if (editingGroupId && enableRecurrenceCheckbox.checked) {
+                    // User explicitly re-defines the series: confirm, then delete+recreate
+                    if (!confirm("전체 반복 일정을 덮어씌웁니다. 계속하시겠습니까?")) return;
+                    await DataManager.deleteSchedulesByGroupId(editingGroupId);
+                    const type = recurrenceTypeSelect.value;
+                    const count = parseInt(recurrenceCountInput.value, 10);
+                    const payloads = [];
+                    const groupId = Math.random().toString(36).substring(2, 15);
+                    const baseStart = new Date(startDateInput.value);
+                    const baseEnd = new Date(endDateInput.value);
+                    for (let i = 0; i < count; i++) {
+                        const nextStart = new Date(baseStart);
+                        const nextEnd = new Date(baseEnd);
+                        if (type === 'daily') {
+                            nextStart.setDate(baseStart.getDate() + i);
+                            nextEnd.setDate(baseEnd.getDate() + i);
+                        } else if (type === 'weekly') {
+                            nextStart.setDate(baseStart.getDate() + (i * 7));
+                            nextEnd.setDate(baseEnd.getDate() + (i * 7));
+                        } else if (type === 'yearly') {
+                            nextStart.setFullYear(baseStart.getFullYear() + i);
+                            nextEnd.setFullYear(baseEnd.getFullYear() + i);
+                        }
+                        payloads.push({ ...payload, start_date: CalendarUtils.formatDate(nextStart), end_date: CalendarUtils.formatDate(nextEnd), group_id: groupId });
+                    }
+                    const newIds = await DataManager.addSchedules(payloads);
+                    payloads.forEach((p, i) => scheduleScheduleNotification({ ...p, id: newIds && newIds[i] }));
                 } else {
-                    if (editingGroupId) await DataManager.deleteSchedulesByGroupId(editingGroupId);
-                    else if (editingScheduleId) await DataManager.deleteSchedule(editingScheduleId);
-                                    await DataManager.addSchedule(payload);
-                                    scheduleScheduleNotification(payload);
-                                }
-                                await DataManager.fetchSchedules();
-                                DataManager.updateWidgetCalendar(); // Force widget sync after data change
-                                await DataManager.syncToCloud();
-                                closeAddScheduleModal();
-                                renderCalendar();
-                            } catch (e) { alert("오류: " + e.message); }
-                        }
-                    
-                        async function deleteSchedule(id) {
-                            if (!confirm("삭제하시겠습니까?")) return;
-                            try {
-                                await DataManager.deleteSchedule(id);
-                                await DataManager.fetchSchedules();
-                                DataManager.updateWidgetCalendar(); // Force widget sync after data change
-                                await DataManager.syncToCloud();
-                                renderCalendar();
-                            } catch (e) { alert("삭제 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."); }
-                        }
+                    // Plain edit (non-recurring) or brand new single schedule
+                    if (editingScheduleId) {
+                        await cancelScheduleNotification(editingScheduleId);
+                        await DataManager.updateSchedule(editingScheduleId, payload);
+                        scheduleScheduleNotification({ ...payload, id: editingScheduleId });
+                    } else {
+                        const newId = await DataManager.addSchedule(payload);
+                        scheduleScheduleNotification({ ...payload, id: newId });
+                    }
+                }
+                await DataManager.fetchSchedules();
+                DataManager.updateWidgetCalendar(); // Force widget sync after data change
+                await DataManager.syncToCloud();
+                closeAddScheduleModal();
+                renderCalendar();
+            } catch (e) { alert("오류: " + e.message); }
+        }
+
+        async function deleteSchedule(id) {
+            if (!confirm("삭제하시겠습니까?")) return;
+            try {
+                await DataManager.deleteSchedule(id);
+                await DataManager.fetchSchedules();
+                DataManager.updateWidgetCalendar(); // Force widget sync after data change
+                await DataManager.syncToCloud();
+                renderCalendar();
+            } catch (e) { alert("삭제 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."); }
+        }
         // --- Event Listeners ---
         prevMonthButton.onclick = () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); };
         nextMonthButton.onclick = () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); };
@@ -1351,7 +1444,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         saveScheduleButton.onclick = saveSchedule;
         closeListModalButton.onclick = closeListModal;
         openAddModalBtn.onclick = () => { closeListModal(); openAddScheduleModal(currentSelectedDate); };
-        enableRecurrenceCheckbox.onchange = (e) => { recurrenceOptions.style.display = e.target.checked ? 'block' : 'none'; };
+        enableRecurrenceCheckbox.onchange = (e) => {
+            recurrenceOptions.style.display = e.target.checked ? 'block' : 'none';
+            // If editing a recurring instance, reflect current scope in the title
+            if (editingScheduleId && editingGroupId) {
+                const modalTitle = modal.querySelector('h2');
+                modalTitle.textContent = e.target.checked ? "일정 수정 (반복 전체)" : "일정 수정 (이 일정만)";
+            }
+        };
         settingsBtn.onclick = () => settingsModal.style.display = 'flex';
         closeSettingsBtn.onclick = () => settingsModal.style.display = 'none';
         
@@ -1442,22 +1542,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+// Hash a schedule id into a 32-bit positive integer for LocalNotifications
+function notifIdFromScheduleId(id) {
+    if (!id) return null;
+    const seed = String(id).split('').reduce((a, c) => (a << 5) - a + c.charCodeAt(0), 0);
+    return Math.abs(seed) % 2147483647;
+}
+
+async function cancelScheduleNotification(id) {
+    if (!window.Capacitor) return;
+    try {
+        const { LocalNotifications } = window.Capacitor.Plugins;
+        if (!LocalNotifications) return;
+        const notifId = notifIdFromScheduleId(id);
+        if (notifId == null) return;
+        await LocalNotifications.cancel({ notifications: [{ id: notifId }] });
+    } catch (e) { /* ignore */ }
+}
+
 // Schedule a local notification 30 minutes before a schedule starts
 async function scheduleScheduleNotification(schedule) {
     if (!window.Capacitor) return;
+    if (!schedule.id) return; // Defensive: without an id we'd collide with other schedules
+    if (!schedule.start_time) return; // All-day events: don't surprise users with a 9 AM notif
     try {
         const { LocalNotifications } = window.Capacitor.Plugins;
         if (!LocalNotifications) return;
         const { display } = await LocalNotifications.checkPermissions();
         if (display !== 'granted') return;
 
-        const startStr = schedule.start_date + (schedule.start_time ? 'T' + schedule.start_time : 'T09:00');
+        const startStr = schedule.start_date + 'T' + schedule.start_time;
         const startDate = new Date(startStr);
         const notifyAt = new Date(startDate.getTime() - 30 * 60 * 1000);
         if (notifyAt <= new Date()) return;
 
-        const idSeed = String(schedule.id).split('').reduce((a, c) => (a << 5) - a + c.charCodeAt(0), 0);
-        const notifId = Math.abs(idSeed) % 2147483647;
+        const notifId = notifIdFromScheduleId(schedule.id);
+        if (notifId == null) return;
         await LocalNotifications.schedule({
             notifications: [{
                 id: notifId,
