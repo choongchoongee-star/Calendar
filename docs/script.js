@@ -195,11 +195,11 @@ const DataManager = {
                         });
 
                         if (result.response && result.response.identityToken) {
-                            const oauthCredential = firebase.auth.OAuthProvider.credential(
-                                'apple.com',
-                                result.response.identityToken,
-                                rawNonce
-                            );
+                            const oauthProvider = new firebase.auth.OAuthProvider('apple.com');
+                            const oauthCredential = oauthProvider.credential({
+                                idToken: result.response.identityToken,
+                                rawNonce: rawNonce,
+                            });
                             const userCredential = await this.auth.signInWithCredential(oauthCredential);
                             localStorage.removeItem('isGuest');
                             this.isGuest = false;
