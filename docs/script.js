@@ -1107,6 +1107,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             deleteAccountBtn.style.display = 'none';
             drawerLoginBtn.style.display = 'block';
             settingsLoginBtn.style.display = 'block';
+        } else {
+            logoutBtn.style.display = '';
+            settingsLogoutBtn.style.display = '';
+            deleteAccountBtn.style.display = '';
+            drawerLoginBtn.style.display = 'none';
+            settingsLoginBtn.style.display = 'none';
         }
 
         deleteAccountBtn.onclick = async () => {
