@@ -5,6 +5,14 @@
   "packageClassList": [
     "SignInWithApple",
     "AppPlugin",
-    "WidgetBridge"
-  ]
+    "WidgetBridge",
+    "GoogleAuth"
+  ],
+  "plugins": {
+    "GoogleAuth": {
+      "scopes": ["profile", "email"],
+      "serverClientId": "957602147466-nkb5bbi51v8nclnag27t585gh31aojiv.apps.googleusercontent.com",
+      "forceCodeForRefreshToken": true
+    }
+  }
 }

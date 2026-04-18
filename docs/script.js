@@ -225,6 +225,45 @@ const DataManager = {
                 }
             }
 
+            // 1b. Native Google Sign-In (iOS)
+            if (provider === 'google' &&
+                window.Capacitor &&
+                window.Capacitor.isNativePlatform()) {
+
+                const GoogleAuth = window.Capacitor.Plugins.GoogleAuth;
+                if (GoogleAuth) {
+                    try {
+                        if (typeof GoogleAuth.initialize === 'function') {
+                            try { await GoogleAuth.initialize(); } catch (_) { /* initialize is idempotent */ }
+                        }
+                        const googleUser = await GoogleAuth.signIn();
+                        const idToken = googleUser && googleUser.authentication && googleUser.authentication.idToken;
+                        if (!idToken) {
+                            throw new Error('No idToken received from Google');
+                        }
+                        const credential = firebase.auth.GoogleAuthProvider.credential(idToken);
+                        const userCredential = await this.auth.signInWithCredential(credential);
+                        localStorage.removeItem('isGuest');
+                        this.isGuest = false;
+                        this.calendars = [];
+                        this.currentCalendarId = null;
+                        this.session = { user: { id: userCredential.user.uid, email: userCredential.user.email } };
+                        document.getElementById('login-modal').style.display = 'none';
+                        document.getElementById('app').style.filter = 'none';
+                        if (window.initializeCalendar) window.initializeCalendar();
+                        return;
+                    } catch (nativeError) {
+                        console.error("Native Google Sign-In error:", nativeError);
+                        alert(
+                            "Google 로그인 실패 (네이티브)\n" +
+                            "code: " + (nativeError.code || "?") + "\n" +
+                            "message: " + (nativeError.message || String(nativeError))
+                        );
+                        return;
+                    }
+                }
+            }
+
             // 2. Web OAuth (Popup)
             localStorage.removeItem('isGuest');
             this.isGuest = false;

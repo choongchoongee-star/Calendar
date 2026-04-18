@@ -60,7 +60,19 @@
 				<string>vibe</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>google-signin</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.957602147466-rr3skbl5besmar1u6minitknhm1bpriv</string>
+			</array>
+		</dict>
 	</array>
+	<key>GIDClientID</key>
+	<string>957602147466-rr3skbl5besmar1u6minitknhm1bpriv.apps.googleusercontent.com</string>
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>일정 시작 전 알림을 보내드립니다.</string>
 </dict>
