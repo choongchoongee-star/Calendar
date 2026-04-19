@@ -95,8 +95,7 @@ const DataManager = {
             WidgetBridge.setSelectedCalendar({
                 calendarId: this.currentCalendarId ? String(this.currentCalendarId) : (calendarList[0] ? calendarList[0].id : "all"),
                 calendarsJson: JSON.stringify(calendarList),
-                schedulesJson: JSON.stringify(scheduleList),
-                authToken: (this.session && this.session.access_token) ? this.session.access_token : ""
+                schedulesJson: JSON.stringify(scheduleList)
             }).then(() => {
             }).catch(err => {
                 console.error("Widget sync failed:", err);

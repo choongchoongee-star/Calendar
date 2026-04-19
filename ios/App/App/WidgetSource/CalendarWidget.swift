@@ -14,16 +14,15 @@ struct WidgetConstants {
     static let selectedCalendarKey = "selectedCalendarId"
     static let allCalendarsJsonKey = "allCalendarsJson"
     static let cachedSchedulesJsonKey = "cachedSchedulesJson"
-    static let authTokenKey = "supabaseAuthToken"
-    
+
     static var sharedDefaults: UserDefaults? {
         UserDefaults(suiteName: appGroup)
     }
-    
+
     static func getOffset() -> Int {
         sharedDefaults?.integer(forKey: offsetKey) ?? 0
     }
-    
+
     static func setOffset(_ value: Int) {
         sharedDefaults?.set(value, forKey: offsetKey)
     }
@@ -31,11 +30,7 @@ struct WidgetConstants {
     static func getRecentCalendarId() -> String? {
         sharedDefaults?.string(forKey: selectedCalendarKey)
     }
-    
-    static func getAuthToken() -> String? {
-        sharedDefaults?.string(forKey: authTokenKey)
-    }
-    
+
     static func getAllCalendars() -> [CalendarEntity] {
         var json = "[]"
         

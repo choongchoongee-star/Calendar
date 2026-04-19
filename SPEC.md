@@ -22,7 +22,7 @@
 Calendar/
 ├── docs/                    # 웹 앱 소스 (Capacitor webDir)
 │   ├── index.html           # 메인 진입점 + 모달 정의
-│   ├── script.js            # 핵심 DataManager & UI 로직 (~1,640줄)
+│   ├── script.js            # 핵심 DataManager & UI 로직 (~1,690줄)
 │   ├── style.css            # 전체 스타일
 │   ├── config.js            # Firebase 자격증명 (CI 주입, 커밋 안 함)
 │   ├── config.example.js    # 설정 예시
@@ -32,7 +32,7 @@ Calendar/
 │   ├── App/ViewController.swift        # CAPBridgeViewController (WidgetBridge 등록)
 │   ├── App/WidgetBridge.swift          # Capacitor 커스텀 플러그인 (JS↔Widget 브릿지)
 │   └── App/WidgetSource/
-│       └── CalendarWidget.swift        # SwiftUI 위젯 (소/중/대, ~640줄)
+│       └── CalendarWidget.swift        # SwiftUI 위젯 (소/중/대, ~680줄)
 ├── .github/workflows/
 │   ├── ios.yml              # iOS 빌드 → TestFlight 업로드
 │   └── pages.yml            # GitHub Pages 배포
@@ -245,6 +245,7 @@ Calendar/
 
 ## 10. 유지보수 기록
 
+- **2026-04-19 (3차):** SPEC vs 코드 드리프트 감사 — 위젯의 `supabaseAuthToken` UserDefaults 키와 `getAuthToken()` 호출 없는 dead code 제거 (WidgetBridge.swift + CalendarWidget.swift + script.js), SPEC §2 줄 수 최신화(script.js 1,690/위젯 680). 확인 필요 항목은 `docs/audit-2026-04-19.md`로 분리.
 - **2026-04-19 (2차):** 공휴일 데이터 2028-2030 확장 (웹 + iOS 위젯 통합) — 음력 설날/추석/석가탄신일 + 대체공휴일 수동 큐레이션, 위젯 holidayData를 2025-2030 커버리지로 웹과 동기화, maintenance_checklist 정리 (item #3 Firebase 마이그레이션으로 obsolete, #5 fixed)
 - **2026-04-19:** 자율 유지보수 — Google Sign-In SPM 마이그레이션(@capacitor-firebase/authentication), 웹 공휴일 2025-2027 확장, 스와이프 리스너 스택 방지, 죽은 코드 제거(syncToCloud/Storage), 브랜드 통일(채우다), SPEC/README 드리프트 정리
 - **2026-04-11:** Phase 4 — Supabase → Firebase 마이그레이션 완료 (Auth, Firestore, CI/CD)
