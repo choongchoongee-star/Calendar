@@ -21,12 +21,12 @@
   "homepage": "https://github.com/choongchoongee-star/Calendar#readme",
   "dependencies": {
     "@capacitor-community/apple-sign-in": "^7.1.0",
+    "@capacitor-firebase/authentication": "^7.5.0",
     "@capacitor/app": "^7.0.0",
     "@capacitor/cli": "^7.0.0",
     "@capacitor/core": "^7.0.0",
     "@capacitor/ios": "^7.0.0",
     "@capacitor/local-notifications": "^7.0.6",
-    "@codetrix-studio/capacitor-google-auth": "^3.4.0-rc.4",
     "jsonwebtoken": "^9.0.3"
   },
   "devDependencies": {

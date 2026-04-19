@@ -225,21 +225,18 @@ const DataManager = {
                 }
             }
 
-            // 1b. Native Google Sign-In (iOS)
+            // 1b. Native Google Sign-In (iOS) via @capacitor-firebase/authentication
             if (provider === 'google' &&
                 window.Capacitor &&
                 window.Capacitor.isNativePlatform()) {
 
-                const GoogleAuth = window.Capacitor.Plugins.GoogleAuth;
-                if (GoogleAuth) {
+                const FirebaseAuth = window.Capacitor.Plugins.FirebaseAuthentication;
+                if (FirebaseAuth) {
                     try {
-                        if (typeof GoogleAuth.initialize === 'function') {
-                            try { await GoogleAuth.initialize(); } catch (_) { /* initialize is idempotent */ }
-                        }
-                        const googleUser = await GoogleAuth.signIn();
-                        const idToken = googleUser && googleUser.authentication && googleUser.authentication.idToken;
+                        const result = await FirebaseAuth.signInWithGoogle({ skipNativeAuth: true });
+                        const idToken = result && result.credential && result.credential.idToken;
                         if (!idToken) {
-                            throw new Error('No idToken received from Google');
+                            throw new Error('No idToken received from FirebaseAuthentication.signInWithGoogle');
                         }
                         const credential = firebase.auth.GoogleAuthProvider.credential(idToken);
                         const userCredential = await this.auth.signInWithCredential(credential);

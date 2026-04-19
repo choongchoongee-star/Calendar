@@ -5,14 +5,12 @@
   "packageClassList": [
     "SignInWithApple",
     "AppPlugin",
-    "WidgetBridge",
-    "GoogleAuth"
+    "WidgetBridge"
   ],
   "plugins": {
-    "GoogleAuth": {
-      "scopes": ["profile", "email"],
-      "serverClientId": "957602147466-nkb5bbi51v8nclnag27t585gh31aojiv.apps.googleusercontent.com",
-      "forceCodeForRefreshToken": true
+    "FirebaseAuthentication": {
+      "skipNativeAuth": true,
+      "providers": ["google.com", "apple.com"]
     }
   }
 }
