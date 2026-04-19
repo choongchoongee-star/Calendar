@@ -1,7 +1,7 @@
 {
-  "name": "월별 일정",
-  "short_name": "일정",
-  "description": "심플한 월별 일정 관리 캘린더",
+  "name": "채우다",
+  "short_name": "채우다",
+  "description": "함께 채우는 공유 달력 — 개인/공유 일정 관리",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",

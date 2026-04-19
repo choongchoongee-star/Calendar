@@ -1565,16 +1565,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         };
 
-        if (window.Capacitor) {
+        // Capacitor listeners: register once per page load. Sign-in/out may
+        // call initializeCalendar() again, and re-registering would stack
+        // duplicate handlers so each deep link would fire N times.
+        if (window.Capacitor && !window._capacitorListenersBound) {
+            window._capacitorListenersBound = true;
             window.Capacitor.Plugins.App.addListener('appUrlOpen', (data) => {
                 window.handleDeepLink(data.url);
             });
-            // Sync widget when app returns to foreground OR goes to background
             window.Capacitor.Plugins.App.addListener('appStateChange', () => {
                 DataManager.updateWidgetCalendar();
             });
 
-            // Request local notification permission
             try {
                 const { LocalNotifications } = window.Capacitor.Plugins;
                 if (LocalNotifications) {
