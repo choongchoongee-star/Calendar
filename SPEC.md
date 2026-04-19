@@ -208,6 +208,8 @@ Calendar/
 - [x] TestFlight 업로드 파이프라인
 
 ### 🙋 직접 해야 하는 작업 (App Store Connect)
+> 앱 설명·키워드·개인정보 레이블·캡션 초안은 [`docs/appstore-metadata.md`](./docs/appstore-metadata.md) 참조 (복붙 기준)
+
 - [ ] **스크린샷** — iPhone 6.7인치 필수, 6.5인치 권장 (시뮬레이터로 촬영 가능)
 - [ ] **앱 설명·키워드** 작성 (한국어, 영어)
 - [ ] **Privacy Policy URL** 등록 — GitHub Pages 배포 후 `docs/privacy.html` URL 입력
