@@ -17,7 +17,7 @@
 
 ## 2. 아키텍처
 
-### 폴더 구조
+### 폴더 구조 (주요 파일만 표시 — iOS AppDelegate·Info.plist·entitlements·PrivacyInfo 등은 생략)
 ```
 Calendar/
 ├── docs/                    # 웹 앱 소스 (Capacitor webDir)
@@ -120,13 +120,13 @@ Calendar/
 - **중형 (2×1):** 현재 주 (일~토) + 일별 일정 목록
 - **대형 (2×2):** 전체 월 그리드 + 날짜별 일정 점+제목
 - 인터랙션: 전/다음 월 이동 (`ChangeMonthIntent`), 날짜 탭 딥링크
-- 딥링크 스키마: `vibe://date/YYYY-MM-DD`, `vibe://add?date=...`
+- 딥링크 스키마: `chaeuda://date/YYYY-MM-DD`, `chaeuda://add?date=...`
 - 공휴일: 한국 공휴일 하드코딩 (빨간색 표시)
 - **구현 상태:** ✅ 완료
 
 ### 4.5 위젯 딥링크 JS 수신
-- `vibe://date/YYYY-MM-DD` 탭 시 앱 내 해당 날짜로 자동 이동
-- `vibe://add?date=YYYY-MM-DD` 탭 시 해당 날짜로 일정 추가 모달 열기
+- `chaeuda://date/YYYY-MM-DD` 탭 시 앱 내 해당 날짜로 자동 이동
+- `chaeuda://add?date=YYYY-MM-DD` 탭 시 해당 날짜로 일정 추가 모달 열기
 - Foreground: `appUrlOpen` 이벤트로 수신
 - Cold start: `App.getLaunchUrl()`로 수신 (loadCalendars 완료 후 처리)
 - **구현 상태:** ✅ 완료
@@ -180,7 +180,7 @@ Calendar/
 - [x] SwiftUI 위젯 (소/중/대형) — 동적 행 높이, 오버플로 표시기
 - [x] WidgetBridge Capacitor 플러그인 (UserDefaults + 파일 백업 이중 동기화)
 - [x] GitHub Actions iOS 자동 빌드 (macos-15 러너, Xcode 26 시도 → 최신 가용 버전 폴백)
-- [x] 위젯 딥링크 JS 수신 (`vibe://date/...`, `vibe://add?date=...`, cold start 포함)
+- [x] 위젯 딥링크 JS 수신 (`chaeuda://date/...`, `chaeuda://add?date=...`, cold start 포함)
 - [x] 로컬 푸시 알림 (일정 30분 전)
 - [x] App Store 출시 준비 (Privacy Manifest, arm64, 개인정보 처리방침)
 - [x] 보안/QA 유지보수 (10건 중 8건 자동 수정 완료)
@@ -238,13 +238,18 @@ Calendar/
 - [x] 폴리시: HTML lang="en"→"ko", 체크마크 "(V)"→"✓", console.log 제거
 
 ### 미해결 (human review 필요)
-- [ ] **위젯 공휴일 TestFlight 배포** — CalendarWidget.swift `holidayData`는 2025-2030 커버됨 (2026-04-19 확장). 실제 사용자 기기 반영은 TestFlight/App Store 재빌드 필요.
-- [ ] **2031+ 공휴일** — 음력 공휴일(설날/추석/석가탄신일/대체공휴일)은 API 또는 한 번 더 수동 확장 필요. 2030년 말 이전에 갱신 권장.
+- [ ] **위젯 공휴일 TestFlight 배포** — `CalendarWidget.swift` `holidayData`는 2025-2030 커버됨 (2026-04-19 확장). 실제 사용자 기기 반영은 TestFlight/App Store 재빌드 필요.
+- [ ] **Google OAuth iOS Client ID 번들 제한 확인** — `Info.plist`의 `GIDClientID`가 번들 `com.dangmoo.calendar`로 제한되어 있는지 GCP 콘솔에서 확인. 상세: `docs/audit-2026-04-19.md` §4.3.
+- [ ] **App Store Connect 메타데이터 입력** — 스크린샷(`screenshots-appstore/`) 및 텍스트 초안(`docs/appstore-metadata.md`) 준비 완료, 사용자 수동 업로드 필요.
+
+### 자동화된 대응 (유지보수 부담 최소화)
+- **공휴일 데이터 갱신** — `.github/workflows/holiday-fetch.yml` + `scripts/fetch-holidays.js`가 data.go.kr 특일정보 API로 매년 5년치 갱신 PR 자동 생성. `DATA_GO_KR_API_KEY` GitHub Secret 필요. 2031+ 이슈는 이 워크플로로 영구 해결.
 
 ---
 
 ## 10. 유지보수 기록
 
+- **2026-04-19 (4차):** 공휴일 자동 갱신 인프라 — `scripts/fetch-holidays.js` + `.github/workflows/holiday-fetch.yml` 도입 (data.go.kr 특일정보 API, 연 1회 5년치 PR 자동 생성), `docs/script.js`/`CalendarWidget.swift`에 `HOLIDAYS:START/END` 마커 삽입, `vibe://`→`chaeuda://` 딥링크 리네임 (위젯 3곳 + JS 핸들러, `vibe:` 폴백 유지), 계정 탈퇴 시 공유 달력 영향 경고 다이얼로그 추가.
 - **2026-04-19 (3차):** SPEC vs 코드 드리프트 감사 — 위젯의 `supabaseAuthToken` UserDefaults 키와 `getAuthToken()` 호출 없는 dead code 제거 (WidgetBridge.swift + CalendarWidget.swift + script.js), SPEC §2 줄 수 최신화(script.js 1,690/위젯 680). 확인 필요 항목은 `docs/audit-2026-04-19.md`로 분리.
 - **2026-04-19 (2차):** 공휴일 데이터 2028-2030 확장 (웹 + iOS 위젯 통합) — 음력 설날/추석/석가탄신일 + 대체공휴일 수동 큐레이션, 위젯 holidayData를 2025-2030 커버리지로 웹과 동기화, maintenance_checklist 정리 (item #3 Firebase 마이그레이션으로 obsolete, #5 fixed)
 - **2026-04-19:** 자율 유지보수 — Google Sign-In SPM 마이그레이션(@capacitor-firebase/authentication), 웹 공휴일 2025-2027 확장, 스와이프 리스너 스택 방지, 죽은 코드 제거(syncToCloud/Storage), 브랜드 통일(채우다), SPEC/README 드리프트 정리

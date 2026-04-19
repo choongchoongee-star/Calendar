@@ -232,6 +232,7 @@ struct ConfigurationIntent: WidgetConfigurationIntent {
 // MARK: - 6. Provider
 struct Provider: AppIntentTimelineProvider {
     let holidayData = [
+        // HOLIDAYS:START (auto-generated; edit via scripts/fetch-holidays.js)
         // 2025
         ("2025-01-01", "2025-01-01", "신정"), ("2025-01-28", "2025-01-30", "설날"),
         ("2025-03-01", "2025-03-01", "삼일절"), ("2025-05-05", "2025-05-05", "어린이날"),
@@ -281,6 +282,7 @@ struct Provider: AppIntentTimelineProvider {
         ("2030-08-15", "2030-08-15", "광복절"), ("2030-09-11", "2030-09-13", "추석"),
         ("2030-10-03", "2030-10-03", "개천절"), ("2030-10-09", "2030-10-09", "한글날"),
         ("2030-12-25", "2030-12-25", "성탄절")
+        // HOLIDAYS:END
     ]
 
     func placeholder(in context: Context) -> CalendarEntry {
@@ -380,7 +382,7 @@ struct CalendarWidgetEntryView : View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .widgetURL(URL(string: "vibe://date/\(formatDate(entry.date))"))
+        .widgetURL(URL(string: "chaeuda://date/\(formatDate(entry.date))"))
     }
 
     var weekView: some View {
@@ -515,7 +517,7 @@ struct CalendarWidgetEntryView : View {
             
             HStack(spacing: 14) {
                 // Deep link with date context
-                Link(destination: URL(string: "vibe://add?date=\(formatDate(entry.displayMonth))")!) {
+                Link(destination: URL(string: "chaeuda://add?date=\(formatDate(entry.displayMonth))")!) {
                     Image(systemName: "plus").font(.system(size: 16, weight: .bold))
                 }
                 Button(intent: RefreshWidgetIntent()) {
@@ -579,7 +581,7 @@ struct CalendarWidgetEntryView : View {
         Group {
             if let date = date {
                 let ds = formatDate(date)
-                Link(destination: URL(string: "vibe://date/\(ds)")!) {
+                Link(destination: URL(string: "chaeuda://date/\(ds)")!) {
                     VStack(spacing: 1) {
                         let isCurrentMonth = Calendar.current.isDate(date, equalTo: entry.displayMonth, toGranularity: .month)
                         let isTodayDate = isToday(date)

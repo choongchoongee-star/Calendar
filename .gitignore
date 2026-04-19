@@ -13,10 +13,18 @@ cert.csr
 *.p12
 *.key
 *.cer
+*.pem
+*.csr
 *.mobileprovision
 *_base64.txt
 jwt.txt
 history.log
+
+# Local IDE/agent config
+.claude_settings.json
+
+# Ephemeral planning artifacts (superpowers skill output)
+docs/superpowers/
 
 # Logs & automation artifacts
 logs/

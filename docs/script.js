@@ -723,6 +723,7 @@ const CalendarUtils = {
 
     getHolidaysForWeek(s, e) {
         const hols = [
+            // HOLIDAYS:START (auto-generated; edit via scripts/fetch-holidays.js)
             // 2025
             {id: 'h25-1', text: "신정", startDate: '2025-01-01', endDate: '2025-01-01', type: 'holiday'},
             {id: 'h25-2', text: "설날", startDate: '2025-01-28', endDate: '2025-01-30', type: 'holiday'},
@@ -817,6 +818,7 @@ const CalendarUtils = {
             {id: 'h30-9', text: "개천절", startDate: '2030-10-03', endDate: '2030-10-03', type: 'holiday'},
             {id: 'h30-10', text: "한글날", startDate: '2030-10-09', endDate: '2030-10-09', type: 'holiday'},
             {id: 'h30-11', text: "성탄절", startDate: '2030-12-25', endDate: '2030-12-25', type: 'holiday'},
+            // HOLIDAYS:END
         ];
         return hols.filter(h => {
             const start = new Date(h.startDate + 'T00:00:00');
@@ -1193,15 +1195,41 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         deleteAccountBtn.onclick = async () => {
-            if (confirm("정말로 계정을 탈퇴하시겠습니까?\n작성하신 모든 캘린더와 일정 데이터가 영구적으로 삭제됩니다.")) {
-                if (confirm("마지막 확인입니다. 정말로 모든 데이터를 삭제하고 탈퇴하시겠습니까?")) {
-                    try {
-                        await DataManager.deleteAccount();
-                        alert("탈퇴 처리가 완료되었습니다.");
-                    } catch (e) {
-                        alert("탈퇴 처리 중 오류가 발생했습니다: " + e.message);
+            if (!confirm("정말로 계정을 탈퇴하시겠습니까?\n작성하신 모든 캘린더와 일정 데이터가 영구적으로 삭제됩니다.")) {
+                return;
+            }
+
+            // Shared-calendar impact warning (owner's withdrawal deletes the calendar for everyone)
+            if (!DataManager.isGuest && DataManager.db && DataManager.session) {
+                try {
+                    const myId = DataManager.session.user.id;
+                    const ownedSnap = await DataManager.db.collection('calendars')
+                        .where('ownerId', '==', myId).get();
+                    let sharedCount = 0;
+                    let impactedMembers = 0;
+                    ownedSnap.docs.forEach(doc => {
+                        const members = doc.data().members || {};
+                        const others = Object.keys(members).filter(uid => uid !== myId);
+                        if (others.length > 0) {
+                            sharedCount += 1;
+                            impactedMembers += others.length;
+                        }
+                    });
+                    if (sharedCount > 0) {
+                        const msg = `⚠️ 공유 달력 ${sharedCount}개가 삭제되며, 해당 달력에 초대된 ${impactedMembers}명은 더 이상 접근할 수 없게 됩니다.\n\n계속 진행할까요?`;
+                        if (!confirm(msg)) return;
                     }
+                } catch (e) {
+                    console.warn("Shared calendar pre-check failed; proceeding with generic warning:", e);
                 }
+            }
+
+            if (!confirm("마지막 확인입니다. 정말로 모든 데이터를 삭제하고 탈퇴하시겠습니까?")) return;
+            try {
+                await DataManager.deleteAccount();
+                alert("탈퇴 처리가 완료되었습니다.");
+            } catch (e) {
+                alert("탈퇴 처리 중 오류가 발생했습니다: " + e.message);
             }
         };
 
@@ -1586,7 +1614,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.handleDeepLink = async (urlStr) => {
             try {
                 const url = new URL(urlStr);
-                if (url.protocol === 'vibe:') {
+                if (url.protocol === 'chaeuda:' || url.protocol === 'vibe:') {
                     if (url.host === 'date') {
                         const dateStr = url.pathname.replace('/', ''); // format: YYYY-MM-DD
                         if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
@@ -1596,7 +1624,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             openScheduleListModal(dateStr);
                         }
                     } else if (url.host === 'add') {
-                        // Support vibe://add?date=YYYY-MM-DD
+                        // Support chaeuda://add?date=YYYY-MM-DD
                         let targetDateStr = url.searchParams.get('date');
                         if (!targetDateStr) {
                              targetDateStr = CalendarUtils.formatDate(new Date());

@@ -1,0 +1,52 @@
+name: Holiday Data Refresh
+
+on:
+  schedule:
+    # Yearly on January 15 at 00:00 UTC to pick up upcoming year's
+    # 대체공휴일 announcements from 행안부 once published.
+    - cron: "0 0 15 1 *"
+  workflow_dispatch:
+    inputs:
+      startYear:
+        description: "Start year (default: current year)"
+        required: false
+      endYear:
+        description: "End year (default: current year + 4)"
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Fetch holidays
+        env:
+          DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
+        run: node scripts/fetch-holidays.js ${{ inputs.startYear }} ${{ inputs.endYear }}
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore(holidays): refresh Korean holiday data"
+          title: "chore(holidays): annual holiday data refresh"
+          body: |
+            Automated refresh from data.go.kr 특일정보 API.
+
+            - Updated `docs/script.js` `getHolidaysForWeek()`
+            - Updated `ios/App/App/WidgetSource/CalendarWidget.swift` `holidayData`
+
+            Review the diff for unexpected changes (cancelled holidays, newly added 대체공휴일, etc.) before merging.
+          branch: chore/holiday-refresh
+          delete-branch: true
+          labels: automated,holidays
