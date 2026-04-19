@@ -8,7 +8,7 @@
 - **Cloud Sync:** Firebase (Firestore) 기반 클라우드 동기화
 - **Social Login:** Google OAuth, Apple Sign-In (Firebase Auth)
 - **Guest Mode:** 로그인 없이 바로 사용 (localStorage 기반)
-- **Sharing:** URL 기반 캘린더 초대, `.ics` 외부 구독
+- **Sharing:** URL 기반 캘린더 초대 (멤버 모델)
 - **iOS Widget:** SwiftUI 위젯 소/중/대형 — 딥링크로 앱 연동 (`vibe://`)
 - **Push Notification:** 일정 30분 전 로컬 알림
 - **Recurring Events:** 일간/주간/연간 반복 일정
@@ -18,7 +18,7 @@
 ## Tech Stack
 
 - **Frontend:** Vanilla HTML/CSS/JS (ES6+), PWA
-- **Backend:** Firebase (Auth, Firestore, Storage)
+- **Backend:** Firebase (Auth, Firestore)
 - **Mobile:** Capacitor 7 (iOS)
 - **Widget:** SwiftUI + WidgetKit + AppIntents
 - **CI/CD:** GitHub Actions → GitHub Pages (웹) / TestFlight (iOS)

@@ -1498,13 +1498,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         settingsBtn.onclick = () => settingsModal.style.display = 'flex';
         closeSettingsBtn.onclick = () => settingsModal.style.display = 'none';
         
-        let touchStartX=0, touchEndX=0;
-        calendarElement.addEventListener('touchstart', e => touchStartX = e.changedTouches[0].screenX, {passive:true});
-        calendarElement.addEventListener('touchend', e => {
-            touchEndX = e.changedTouches[0].screenX;
-            if (touchEndX < touchStartX - 50) nextMonthButton.click();
-            if (touchEndX > touchStartX + 50) prevMonthButton.click();
-        }, {passive:true});
+        // Swipe handlers: registered once per page load. initializeCalendar()
+        // can be re-invoked (e.g. when onAuthStateChanged fires after a native
+        // sign-in), and addEventListener would otherwise stack duplicates.
+        if (!window._calendarSwipeBound) {
+            window._calendarSwipeBound = true;
+            let touchStartX = 0, touchEndX = 0;
+            calendarElement.addEventListener('touchstart', e => touchStartX = e.changedTouches[0].screenX, {passive:true});
+            calendarElement.addEventListener('touchend', e => {
+                touchEndX = e.changedTouches[0].screenX;
+                if (touchEndX < touchStartX - 50) nextMonthButton.click();
+                if (touchEndX > touchStartX + 50) prevMonthButton.click();
+            }, {passive:true});
+        }
 
         window.onclick = (e) => {
             if (e.target === modal) closeAddScheduleModal();
