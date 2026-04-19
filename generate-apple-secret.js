@@ -4,10 +4,17 @@ const path = require('path');
 
 /**
  * --- APPLE CLIENT SECRET GENERATOR ---
- * 
- * 1. Your .p8 file is already in this folder: AuthKey_S8YXPF6KZ3.p8
+ *
+ * Legacy helper. Firebase Auth (current backend) generates the Apple client
+ * secret internally once the .p8, Key ID, and Team ID are uploaded in the
+ * Firebase console, so this script is NOT needed in the normal flow.
+ *
+ * Keep only for emergencies — e.g. if an external integration ever needs a
+ * raw ES256 JWT for com.dangmoo.calendar.web.
+ *
+ * 1. Ensure AuthKey_S8YXPF6KZ3.p8 is present in this folder (gitignored).
  * 2. Run: node generate-apple-secret.js
- * 3. Copy the output into Supabase "Client Secret" field.
+ * 3. Copy the printed token into the target provider's client-secret field.
  */
 
 // --- CONFIGURATION ---
@@ -37,7 +44,7 @@ try {
         keyid: KEY_ID,
     });
 
-    console.log("\n✅ SUCCESS! Copy the token below into the Supabase 'Client Secret' field:");
+    console.log("\n✅ SUCCESS! Copy the token below into the target provider's 'Client Secret' field:");
     console.log("\n-------------------------------------------------------------------------");
     console.log(token);
     console.log("-------------------------------------------------------------------------\n");
