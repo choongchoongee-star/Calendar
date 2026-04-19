@@ -773,6 +773,51 @@ const CalendarUtils = {
             {id: 'h27-9d', text: "개천절 대체", startDate: '2027-10-04', endDate: '2027-10-04', type: 'holiday'},
             {id: 'h27-10', text: "한글날", startDate: '2027-10-09', endDate: '2027-10-09', type: 'holiday'},
             {id: 'h27-11', text: "성탄절", startDate: '2027-12-25', endDate: '2027-12-25', type: 'holiday'},
+
+            // 2028
+            {id: 'h28-1', text: "신정", startDate: '2028-01-01', endDate: '2028-01-01', type: 'holiday'},
+            {id: 'h28-2', text: "설날", startDate: '2028-01-26', endDate: '2028-01-28', type: 'holiday'},
+            {id: 'h28-3', text: "삼일절", startDate: '2028-03-01', endDate: '2028-03-01', type: 'holiday'},
+            {id: 'h28-4', text: "어린이날", startDate: '2028-05-05', endDate: '2028-05-05', type: 'holiday'},
+            {id: 'h28-5', text: "부처님 오신 날", startDate: '2028-05-02', endDate: '2028-05-02', type: 'holiday'},
+            {id: 'h28-6', text: "현충일", startDate: '2028-06-06', endDate: '2028-06-06', type: 'holiday'},
+            {id: 'h28-7', text: "광복절", startDate: '2028-08-15', endDate: '2028-08-15', type: 'holiday'},
+            {id: 'h28-8', text: "추석", startDate: '2028-10-02', endDate: '2028-10-04', type: 'holiday'},
+            {id: 'h28-9', text: "개천절", startDate: '2028-10-03', endDate: '2028-10-03', type: 'holiday'},
+            {id: 'h28-8d', text: "추석 대체", startDate: '2028-10-05', endDate: '2028-10-05', type: 'holiday'},
+            {id: 'h28-10', text: "한글날", startDate: '2028-10-09', endDate: '2028-10-09', type: 'holiday'},
+            {id: 'h28-11', text: "성탄절", startDate: '2028-12-25', endDate: '2028-12-25', type: 'holiday'},
+
+            // 2029
+            {id: 'h29-1', text: "신정", startDate: '2029-01-01', endDate: '2029-01-01', type: 'holiday'},
+            {id: 'h29-2', text: "설날", startDate: '2029-02-12', endDate: '2029-02-14', type: 'holiday'},
+            {id: 'h29-3', text: "삼일절", startDate: '2029-03-01', endDate: '2029-03-01', type: 'holiday'},
+            {id: 'h29-4', text: "어린이날", startDate: '2029-05-05', endDate: '2029-05-05', type: 'holiday'},
+            {id: 'h29-4d', text: "어린이날 대체", startDate: '2029-05-07', endDate: '2029-05-07', type: 'holiday'},
+            {id: 'h29-5', text: "부처님 오신 날", startDate: '2029-05-20', endDate: '2029-05-20', type: 'holiday'},
+            {id: 'h29-5d', text: "부처님오신날 대체", startDate: '2029-05-21', endDate: '2029-05-21', type: 'holiday'},
+            {id: 'h29-6', text: "현충일", startDate: '2029-06-06', endDate: '2029-06-06', type: 'holiday'},
+            {id: 'h29-7', text: "광복절", startDate: '2029-08-15', endDate: '2029-08-15', type: 'holiday'},
+            {id: 'h29-8', text: "추석", startDate: '2029-09-21', endDate: '2029-09-23', type: 'holiday'},
+            {id: 'h29-8d', text: "추석 대체", startDate: '2029-09-24', endDate: '2029-09-24', type: 'holiday'},
+            {id: 'h29-9', text: "개천절", startDate: '2029-10-03', endDate: '2029-10-03', type: 'holiday'},
+            {id: 'h29-10', text: "한글날", startDate: '2029-10-09', endDate: '2029-10-09', type: 'holiday'},
+            {id: 'h29-11', text: "성탄절", startDate: '2029-12-25', endDate: '2029-12-25', type: 'holiday'},
+
+            // 2030
+            {id: 'h30-1', text: "신정", startDate: '2030-01-01', endDate: '2030-01-01', type: 'holiday'},
+            {id: 'h30-2', text: "설날", startDate: '2030-02-02', endDate: '2030-02-04', type: 'holiday'},
+            {id: 'h30-2d', text: "설날 대체", startDate: '2030-02-05', endDate: '2030-02-05', type: 'holiday'},
+            {id: 'h30-3', text: "삼일절", startDate: '2030-03-01', endDate: '2030-03-01', type: 'holiday'},
+            {id: 'h30-4', text: "어린이날", startDate: '2030-05-05', endDate: '2030-05-05', type: 'holiday'},
+            {id: 'h30-4d', text: "어린이날 대체", startDate: '2030-05-06', endDate: '2030-05-06', type: 'holiday'},
+            {id: 'h30-5', text: "부처님 오신 날", startDate: '2030-05-09', endDate: '2030-05-09', type: 'holiday'},
+            {id: 'h30-6', text: "현충일", startDate: '2030-06-06', endDate: '2030-06-06', type: 'holiday'},
+            {id: 'h30-7', text: "광복절", startDate: '2030-08-15', endDate: '2030-08-15', type: 'holiday'},
+            {id: 'h30-8', text: "추석", startDate: '2030-09-11', endDate: '2030-09-13', type: 'holiday'},
+            {id: 'h30-9', text: "개천절", startDate: '2030-10-03', endDate: '2030-10-03', type: 'holiday'},
+            {id: 'h30-10', text: "한글날", startDate: '2030-10-09', endDate: '2030-10-09', type: 'holiday'},
+            {id: 'h30-11', text: "성탄절", startDate: '2030-12-25', endDate: '2030-12-25', type: 'holiday'},
         ];
         return hols.filter(h => {
             const start = new Date(h.startDate + 'T00:00:00');

@@ -1,7 +1,7 @@
 # 채우다 (Chaeuda) — Calendar 기획서
 
 > 마지막 업데이트: 2026-04-19
-> 현재 Phase: Phase 4 완료 (Firebase 마이그레이션) + 유지보수
+> 현재 Phase: Phase 4 완료 (Firebase 마이그레이션) + 공휴일 2025-2030 확장 완료
 
 ---
 
@@ -236,13 +236,14 @@ Calendar/
 - [x] 폴리시: HTML lang="en"→"ko", 체크마크 "(V)"→"✓", console.log 제거
 
 ### 미해결 (human review 필요)
-- [ ] **위젯 공휴일 데이터** — CalendarWidget.swift `holidayData`는 여전히 2026년만 포함. 웹 `getHolidaysForWeek()`는 2025-2027 커버됨 (2026-04-19 확장). 위젯 업데이트는 TestFlight 재빌드 필요.
-- [ ] **2028+ 공휴일** — 음력 공휴일(설날/추석/석가탄신일/대체공휴일)은 API 또는 한 번 더 수동 확장 필요.
+- [ ] **위젯 공휴일 TestFlight 배포** — CalendarWidget.swift `holidayData`는 2025-2030 커버됨 (2026-04-19 확장). 실제 사용자 기기 반영은 TestFlight/App Store 재빌드 필요.
+- [ ] **2031+ 공휴일** — 음력 공휴일(설날/추석/석가탄신일/대체공휴일)은 API 또는 한 번 더 수동 확장 필요. 2030년 말 이전에 갱신 권장.
 
 ---
 
 ## 10. 유지보수 기록
 
+- **2026-04-19 (2차):** 공휴일 데이터 2028-2030 확장 (웹 + iOS 위젯 통합) — 음력 설날/추석/석가탄신일 + 대체공휴일 수동 큐레이션, 위젯 holidayData를 2025-2030 커버리지로 웹과 동기화, maintenance_checklist 정리 (item #3 Firebase 마이그레이션으로 obsolete, #5 fixed)
 - **2026-04-19:** 자율 유지보수 — Google Sign-In SPM 마이그레이션(@capacitor-firebase/authentication), 웹 공휴일 2025-2027 확장, 스와이프 리스너 스택 방지, 죽은 코드 제거(syncToCloud/Storage), 브랜드 통일(채우다), SPEC/README 드리프트 정리
 - **2026-04-11:** Phase 4 — Supabase → Firebase 마이그레이션 완료 (Auth, Firestore, CI/CD)
 - **2026-04-10:** 보안 점검 — git 이력에서 .p8 프라이빗 키 완전 삭제, 민감 파일 7개 추적 해제, .gitignore 보강
