@@ -112,8 +112,7 @@ const DataManager = {
         firebase.initializeApp(config);
         this.auth = firebase.auth();
         this.db = firebase.firestore();
-        this.storage = null;
-        this.client = true; // Keep truthy check for existing guard at line 750
+        this.client = true;
     },
 
     async checkSession() {
@@ -698,42 +697,6 @@ const DataManager = {
         await this.fetchSchedules();
     },
 
-    async syncToCloud() {
-        if (this.isGuest) return; // Guest schedules are not synced
-
-        if (!this.storage || !this.currentCalendarId) return;
-        // Only sync if I am the owner (simplification for now, strictly speaking editors should too)
-        // We'll upload to a file named after the Calendar ID to allow multiple subscriptions
-        const fileName = `calendar-${this.currentCalendarId}.ics`;
-        let icsContent ="BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Calendar//EN\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\nX-PUBLISHED-TTL:PT1H\n";
-        this.schedules.forEach(event => {
-            const start = event.startDate.replace(/-/g, '') + (event.startTime ? 'T' + event.startTime.replace(/:/g, '') + '00' : '');
-            const end = event.endDate.replace(/-/g, '') + (event.endTime ? 'T' + event.endTime.replace(/:/g, '') + '00' : '');
-            let finalEnd = end;
-            if (!event.startTime) {
-                 const d = new Date(event.endDate);
-                 d.setDate(d.getDate() + 1);
-                 finalEnd = d.toISOString().split('T')[0].replace(/-/g, '');
-            }
-            icsContent += "BEGIN:VEVENT\n";
-            icsContent += `UID:${event.id || Math.random()}@vibecalendar\n`;
-            icsContent += `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z\n`;
-            icsContent += `DTSTART;VALUE=${event.startTime ? 'DATE-TIME' : 'DATE'}:${start}\n`;
-            icsContent += `DTEND;VALUE=${event.endTime ? 'DATE-TIME' : 'DATE'}:${finalEnd}\n`;
-            icsContent += `SUMMARY:${event.text}\n`;
-            icsContent += "END:VEVENT\n";
-        });
-        icsContent += "END:VCALENDAR";
-
-        const blob = new Blob([icsContent], { type: 'text/calendar' });
-        const storageRef = this.storage.ref(`ics/${fileName}`);
-        try {
-            await storageRef.put(blob);
-        } catch (err) {
-            console.error("Cloud sync failed:", err);
-        }
-    },
-    
     getSchedules() { return this.schedules; }
 };
 
@@ -761,22 +724,55 @@ const CalendarUtils = {
 
     getHolidaysForWeek(s, e) {
         const hols = [
-            {id: 'h1', text: "신정", startDate: '2026-01-01', endDate: '2026-01-01', type: 'holiday'},
-            {id: 'h2', text: "설날", startDate: '2026-02-16', endDate: '2026-02-18', type: 'holiday'},
-            {id: 'h3', text: "삼일절", startDate: '2026-03-01', endDate: '2026-03-01', type: 'holiday'},
-            {id: 'h4', text: "어린이날", startDate: '2026-05-05', endDate: '2026-05-05', type: 'holiday'},
-            {id: 'h5', text: "부처님 오신 날", startDate: '2026-05-24', endDate: '2026-05-24', type: 'holiday'},
-            {id: 'h6', text: "현충일", startDate: '2026-06-06', endDate: '2026-06-06', type: 'holiday'},
-            {id: 'h7', text: "광복절", startDate: '2026-08-15', endDate: '2026-08-15', type: 'holiday'},
-            {id: 'h8', text: "추석", startDate: '2026-09-24', endDate: '2026-09-26', type: 'holiday'},
-            {id: 'h9', text: "개천절", startDate: '2026-10-03', endDate: '2026-10-03', type: 'holiday'},
-            {id: 'h10', text: "한글날", startDate: '2026-10-09', endDate: '2026-10-09', type: 'holiday'},
-            {id: 'h11', text: "성탄절", startDate: '2026-12-25', endDate: '2026-12-25', type: 'holiday'},
-            {id: 'h12', text: "삼일절 대체", startDate: '2026-03-02', endDate: '2026-03-02', type: 'holiday'},
-            {id: 'h13', text: "부처님오신날 대체", startDate: '2026-05-25', endDate: '2026-05-25', type: 'holiday'},
-            {id: 'h14', text: "광복절 대체", startDate: '2026-08-17', endDate: '2026-08-17', type: 'holiday'},
-            {id: 'h15', text: "추석 대체", startDate: '2026-09-28', endDate: '2026-09-28', type: 'holiday'},
-            {id: 'h16', text: "개천절 대체", startDate: '2026-10-05', endDate: '2026-10-05', type: 'holiday'},
+            // 2025
+            {id: 'h25-1', text: "신정", startDate: '2025-01-01', endDate: '2025-01-01', type: 'holiday'},
+            {id: 'h25-2', text: "설날", startDate: '2025-01-28', endDate: '2025-01-30', type: 'holiday'},
+            {id: 'h25-3', text: "삼일절", startDate: '2025-03-01', endDate: '2025-03-01', type: 'holiday'},
+            {id: 'h25-4', text: "어린이날", startDate: '2025-05-05', endDate: '2025-05-05', type: 'holiday'},
+            {id: 'h25-5', text: "부처님 오신 날", startDate: '2025-05-05', endDate: '2025-05-05', type: 'holiday'},
+            {id: 'h25-5d', text: "부처님오신날 대체", startDate: '2025-05-06', endDate: '2025-05-06', type: 'holiday'},
+            {id: 'h25-6', text: "현충일", startDate: '2025-06-06', endDate: '2025-06-06', type: 'holiday'},
+            {id: 'h25-7', text: "광복절", startDate: '2025-08-15', endDate: '2025-08-15', type: 'holiday'},
+            {id: 'h25-8', text: "추석", startDate: '2025-10-05', endDate: '2025-10-07', type: 'holiday'},
+            {id: 'h25-8d', text: "추석 대체", startDate: '2025-10-08', endDate: '2025-10-08', type: 'holiday'},
+            {id: 'h25-9', text: "개천절", startDate: '2025-10-03', endDate: '2025-10-03', type: 'holiday'},
+            {id: 'h25-10', text: "한글날", startDate: '2025-10-09', endDate: '2025-10-09', type: 'holiday'},
+            {id: 'h25-11', text: "성탄절", startDate: '2025-12-25', endDate: '2025-12-25', type: 'holiday'},
+
+            // 2026
+            {id: 'h26-1', text: "신정", startDate: '2026-01-01', endDate: '2026-01-01', type: 'holiday'},
+            {id: 'h26-2', text: "설날", startDate: '2026-02-16', endDate: '2026-02-18', type: 'holiday'},
+            {id: 'h26-3', text: "삼일절", startDate: '2026-03-01', endDate: '2026-03-01', type: 'holiday'},
+            {id: 'h26-3d', text: "삼일절 대체", startDate: '2026-03-02', endDate: '2026-03-02', type: 'holiday'},
+            {id: 'h26-4', text: "어린이날", startDate: '2026-05-05', endDate: '2026-05-05', type: 'holiday'},
+            {id: 'h26-5', text: "부처님 오신 날", startDate: '2026-05-24', endDate: '2026-05-24', type: 'holiday'},
+            {id: 'h26-5d', text: "부처님오신날 대체", startDate: '2026-05-25', endDate: '2026-05-25', type: 'holiday'},
+            {id: 'h26-6', text: "현충일", startDate: '2026-06-06', endDate: '2026-06-06', type: 'holiday'},
+            {id: 'h26-7', text: "광복절", startDate: '2026-08-15', endDate: '2026-08-15', type: 'holiday'},
+            {id: 'h26-7d', text: "광복절 대체", startDate: '2026-08-17', endDate: '2026-08-17', type: 'holiday'},
+            {id: 'h26-8', text: "추석", startDate: '2026-09-24', endDate: '2026-09-26', type: 'holiday'},
+            {id: 'h26-8d', text: "추석 대체", startDate: '2026-09-28', endDate: '2026-09-28', type: 'holiday'},
+            {id: 'h26-9', text: "개천절", startDate: '2026-10-03', endDate: '2026-10-03', type: 'holiday'},
+            {id: 'h26-9d', text: "개천절 대체", startDate: '2026-10-05', endDate: '2026-10-05', type: 'holiday'},
+            {id: 'h26-10', text: "한글날", startDate: '2026-10-09', endDate: '2026-10-09', type: 'holiday'},
+            {id: 'h26-11', text: "성탄절", startDate: '2026-12-25', endDate: '2026-12-25', type: 'holiday'},
+
+            // 2027
+            {id: 'h27-1', text: "신정", startDate: '2027-01-01', endDate: '2027-01-01', type: 'holiday'},
+            {id: 'h27-2', text: "설날", startDate: '2027-02-06', endDate: '2027-02-08', type: 'holiday'},
+            {id: 'h27-2d', text: "설날 대체", startDate: '2027-02-09', endDate: '2027-02-09', type: 'holiday'},
+            {id: 'h27-3', text: "삼일절", startDate: '2027-03-01', endDate: '2027-03-01', type: 'holiday'},
+            {id: 'h27-4', text: "어린이날", startDate: '2027-05-05', endDate: '2027-05-05', type: 'holiday'},
+            {id: 'h27-5', text: "부처님 오신 날", startDate: '2027-05-13', endDate: '2027-05-13', type: 'holiday'},
+            {id: 'h27-6', text: "현충일", startDate: '2027-06-06', endDate: '2027-06-06', type: 'holiday'},
+            {id: 'h27-6d', text: "현충일 대체", startDate: '2027-06-07', endDate: '2027-06-07', type: 'holiday'},
+            {id: 'h27-7', text: "광복절", startDate: '2027-08-15', endDate: '2027-08-15', type: 'holiday'},
+            {id: 'h27-7d', text: "광복절 대체", startDate: '2027-08-16', endDate: '2027-08-16', type: 'holiday'},
+            {id: 'h27-8', text: "추석", startDate: '2027-09-14', endDate: '2027-09-16', type: 'holiday'},
+            {id: 'h27-9', text: "개천절", startDate: '2027-10-03', endDate: '2027-10-03', type: 'holiday'},
+            {id: 'h27-9d', text: "개천절 대체", startDate: '2027-10-04', endDate: '2027-10-04', type: 'holiday'},
+            {id: 'h27-10', text: "한글날", startDate: '2027-10-09', endDate: '2027-10-09', type: 'holiday'},
+            {id: 'h27-11', text: "성탄절", startDate: '2027-12-25', endDate: '2027-12-25', type: 'holiday'},
         ];
         return hols.filter(h => {
             const start = new Date(h.startDate + 'T00:00:00');
@@ -862,23 +858,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Firebase Auth state listener (replaces Supabase onAuthStateChange)
-    if (!DataManager.client) { return; }
-    DataManager.auth.onAuthStateChanged(async (user) => {
-        if (user) {
-            DataManager.session = { user: { id: user.uid, email: user.email } };
-            loginModal.style.display = 'none';
-            appContainer.style.filter = 'none';
-            if (window.initializeCalendar) {
-                window.initializeCalendar();
+    // Firebase Auth state listener — only attached if Firebase initialized.
+    // When config is missing we still want the guest-only flow below to run.
+    if (DataManager.client) {
+        DataManager.auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                DataManager.session = { user: { id: user.uid, email: user.email } };
+                loginModal.style.display = 'none';
+                appContainer.style.filter = 'none';
+                if (window.initializeCalendar) {
+                    window.initializeCalendar();
+                }
+                await checkInvite();
+            } else if (!DataManager.isGuest) {
+                loginModal.style.display = 'flex';
+                appContainer.style.filter = 'blur(5px)';
+                DataManager.session = null;
             }
-            await checkInvite();
-        } else if (!DataManager.isGuest) {
-            loginModal.style.display = 'flex';
-            appContainer.style.filter = 'blur(5px)';
-            DataManager.session = null;
-        }
-    });
+        });
+    }
 
     // Check Session (Initial Load)
     const session = await DataManager.checkSession();
@@ -956,9 +954,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const colorPalette = ['#47A9F3', '#8FA9C4', '#B884D6', '#FF5A00', '#00B38F', '#6FD0C0', '#FFA0AD', '#F5333F', '#7ED957', '#D6DB5A', '#FFD84A', '#FFA31A'];
         const paletteContainer = document.getElementById('color-palette');
 
-        // ... Dropdown Initialization (Same as before) ...
         const currentYear = new Date().getFullYear();
-        for (let y = 1900; y <= 2100; y++) {
+        for (let y = currentYear - 50; y <= currentYear + 10; y++) {
             const option = document.createElement('option');
             option.value = y;
             option.textContent = y;
@@ -1466,8 +1463,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 }
                 await DataManager.fetchSchedules();
-                DataManager.updateWidgetCalendar(); // Force widget sync after data change
-                await DataManager.syncToCloud();
+                DataManager.updateWidgetCalendar();
                 closeAddScheduleModal();
                 renderCalendar();
             } catch (e) { alert("오류: " + e.message); }
@@ -1478,8 +1474,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             try {
                 await DataManager.deleteSchedule(id);
                 await DataManager.fetchSchedules();
-                DataManager.updateWidgetCalendar(); // Force widget sync after data change
-                await DataManager.syncToCloud();
+                DataManager.updateWidgetCalendar();
                 renderCalendar();
             } catch (e) { alert("삭제 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."); }
         }

@@ -187,10 +187,6 @@ header {
     box-sizing: border-box;
 }
 
-.event-bar.multi-day {
-    /* Kept for reference, though unified style is preferred, holidays will override */
-}
-
 .event-bar.holiday {
     background-color: #ff6b6b;
     color: white;
