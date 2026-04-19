@@ -5,6 +5,11 @@ on:
     # Yearly on January 15 at 00:00 UTC to pick up upcoming year's
     # 대체공휴일 announcements from 행안부 once published.
     - cron: "0 0 15 1 *"
+  push:
+    # Re-register workflow when this file itself changes; scoped path
+    # means unrelated pushes do not trigger a holiday refresh.
+    paths:
+      - .github/workflows/holiday-fetch.yml
   workflow_dispatch:
     inputs:
       startYear:
