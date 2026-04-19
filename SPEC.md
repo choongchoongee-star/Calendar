@@ -1,7 +1,7 @@
 # 채우다 (Chaeuda) — Calendar 기획서
 
-> 마지막 업데이트: 2026-04-11
-> 현재 Phase: Phase 4 완료 (Firebase 마이그레이션)
+> 마지막 업데이트: 2026-04-19
+> 현재 Phase: Phase 4 완료 (Firebase 마이그레이션) + 유지보수
 
 ---
 
@@ -10,7 +10,7 @@
 - **앱 이름:** 채우다 (Chaeuda) — App ID: `com.dangmoo.calendar`
 - **목적:** 개인 및 공유 일정 관리를 위한 반응형 크로스플랫폼 캘린더 앱
 - **핵심 제약사항:** 정적 호스팅 (GitHub Pages), iOS Capacitor 래퍼, Firebase 백엔드
-- **기술 스택:** Vanilla JS (ES6+) + Capacitor 7 + Firebase (Auth, Firestore, Storage) + iOS WidgetKit + SwiftUI
+- **기술 스택:** Vanilla JS (ES6+) + Capacitor 7 + Firebase (Auth, Firestore) + iOS WidgetKit + SwiftUI
 - **주요 사용자:** Charlie + 공유 달력 구성원
 
 ---
@@ -22,7 +22,7 @@
 Calendar/
 ├── docs/                    # 웹 앱 소스 (Capacitor webDir)
 │   ├── index.html           # 메인 진입점 + 모달 정의
-│   ├── script.js            # 핵심 DataManager & UI 로직 (~1,470줄)
+│   ├── script.js            # 핵심 DataManager & UI 로직 (~1,640줄)
 │   ├── style.css            # 전체 스타일
 │   ├── config.js            # Firebase 자격증명 (CI 주입, 커밋 안 함)
 │   ├── config.example.js    # 설정 예시
@@ -43,7 +43,7 @@ Calendar/
 ### 핵심 데이터 흐름
 ```
 웹 앱 (JS)
-  → Firebase SDK (Auth + Firestore + Storage)
+  → Firebase SDK (Auth + Firestore)
   → updateWidgetCalendar() 호출
   → WidgetBridge.setSelectedCalendar()
   → SharedUserDefaults (group.com.dangmoo.calendar)
@@ -51,8 +51,9 @@ Calendar/
 ```
 
 ### 외부 의존성
-- Firebase (Auth, Firestore, Storage) — CDN으로 JS SDK (compat v10) 로드
+- Firebase (Auth, Firestore) — CDN으로 JS SDK (compat v10) 로드
 - Apple Sign-In (iOS: `@capacitor-community/apple-sign-in` 플러그인, Web: Firebase popup)
+- Google Sign-In (iOS: `@capacitor-firebase/authentication` with `skipNativeAuth: true`, Web: Firebase popup)
 - `@capacitor/local-notifications` — 일정 알림
 - `@capacitor/app` — 딥링크 수신, 앱 상태 변경 감지
 - GitHub Actions (iOS 빌드 자동화 → TestFlight, Pages 배포)
@@ -105,8 +106,7 @@ Calendar/
 
 ### 4.2 달력 관리 (CRUD)
 - 다중 달력 지원 (생성/이름 변경/삭제)
-- 초대 시스템: URL 기반 (`?invite_calendar_id=...`)
-- 공개 구독: Supabase Storage에 `.ics` 자동 생성/갱신
+- 초대 시스템: URL 기반 (`?invite_calendar_id=...`) — 수락 시 `members.<uid>: 'editor'` 추가
 - **구현 상태:** ✅ 완료
 
 ### 4.3 일정 관리 (CRUD)
@@ -133,7 +133,7 @@ Calendar/
 
 ### 4.6 로컬 알림
 - 일정 시작 30분 전 푸시 알림 (`@capacitor/local-notifications`)
-- 시간 미지정 일정: 당일 09:00 기준
+- 시간 미지정(하루 종일) 일정은 알림 스킵 — 임의의 시간에 울리면 놀라게 되므로
 - 과거 일정(이미 지난 시간)은 알림 스킵
 - 알림 ID: 일정 ID의 해시값 (Int32 범위)
 - **구현 상태:** ✅ 완료
@@ -151,14 +151,14 @@ Calendar/
 |------|------|------|
 | 달력 조회 | Firebase Firestore SDK | Security Rules로 소유/멤버 달력만 반환 |
 | 일정 CRUD | Firebase Firestore SDK | Security Rules 적용 |
-| `.ics` 업로드 | Firebase Storage | 공개 구독용 |
-| 위젯 동기화 | WidgetBridge Capacitor Plugin | SharedUserDefaults 경유 |
+| 위젯 동기화 | WidgetBridge Capacitor Plugin | SharedUserDefaults + 파일 백업 이중 동기화 |
 
-### Widget SharedUserDefaults 키
+### Widget SharedUserDefaults 키 (App Group: `group.com.dangmoo.calendar`)
 | 키 | 설명 |
 |----|------|
 | `selectedCalendarId` | 현재 활성 달력 ID |
-| `allCalendars` | 달력 메타데이터 목록 |
+| `allCalendarsJson` | 달력 메타데이터 JSON 문자열 |
+| `cachedSchedulesJson` | 일정 캐시 JSON 문자열 |
 | `widgetMonthOffset` | 위젯 월 이동 오프셋 |
 
 ---
@@ -173,9 +173,8 @@ Calendar/
 
 ### ✅ Phase 2 — 클라우드 + 공유
 - [x] Google / Apple 인증
-- [x] Supabase 동기화
-- [x] 달력 초대 시스템
-- [x] `.ics` 공개 구독
+- [x] Supabase 동기화 (이후 Phase 4에서 Firebase로 대체)
+- [x] 달력 초대 시스템 (멤버 모델)
 
 ### ✅ Phase 3 — iOS 위젯 + 앱 완성
 - [x] SwiftUI 위젯 (소/중/대형) — 동적 행 높이, 오버플로 표시기
@@ -190,7 +189,7 @@ Calendar/
 - [x] Supabase Auth → Firebase Auth (Google, Apple Sign-In, Guest Mode)
 - [x] PostgreSQL → Firestore (calendars, schedules 컬렉션)
 - [x] calendar_members 테이블 → calendars 문서 내 members map
-- [x] Supabase Storage → Firebase Storage (.ics 파일)
+- [x] `.ics` 공유 기능은 사용하지 않아 제거 (구독자 0명)
 - [x] CI/CD 워크플로 업데이트 (GitHub Secrets 변경)
 - [x] 데이터 마이그레이션 스크립트 (Node.js 일회성)
 - [x] 계정 완전 삭제 구현 (Firebase Auth 클라이언트 삭제)
@@ -237,13 +236,15 @@ Calendar/
 - [x] 폴리시: HTML lang="en"→"ko", 체크마크 "(V)"→"✓", console.log 제거
 
 ### 미해결 (human review 필요)
-- [ ] **공휴일 데이터 2026년 하드코딩** — script.js `getHolidaysForWeek()`와 CalendarWidget.swift `holidayData`가 모두 2026년만 포함. 2027년부터 공휴일 미표시. 음력 공휴일(설날/추석/석가탄신일)은 API 또는 멀티년 테이블 필요.
+- [ ] **위젯 공휴일 데이터** — CalendarWidget.swift `holidayData`는 여전히 2026년만 포함. 웹 `getHolidaysForWeek()`는 2025-2027 커버됨 (2026-04-19 확장). 위젯 업데이트는 TestFlight 재빌드 필요.
+- [ ] **2028+ 공휴일** — 음력 공휴일(설날/추석/석가탄신일/대체공휴일)은 API 또는 한 번 더 수동 확장 필요.
 
 ---
 
 ## 10. 유지보수 기록
 
-- **2026-04-11:** Phase 4 — Supabase → Firebase 마이그레이션 완료 (Auth, Firestore, Storage, CI/CD)
+- **2026-04-19:** 자율 유지보수 — Google Sign-In SPM 마이그레이션(@capacitor-firebase/authentication), 웹 공휴일 2025-2027 확장, 스와이프 리스너 스택 방지, 죽은 코드 제거(syncToCloud/Storage), 브랜드 통일(채우다), SPEC/README 드리프트 정리
+- **2026-04-11:** Phase 4 — Supabase → Firebase 마이그레이션 완료 (Auth, Firestore, CI/CD)
 - **2026-04-10:** 보안 점검 — git 이력에서 .p8 프라이빗 키 완전 삭제, 민감 파일 7개 추적 해제, .gitignore 보강
 - **2026-04-04:** 자동 유지보수 실행 — 10건 점검, 8건 자동 수정, 2건 human review 보류 (상세: `maintenance_report.md`)
 - **2026-03 중순:** Phase 3 기능 완성 (위젯, 딥링크, 알림, App Store 준비)
